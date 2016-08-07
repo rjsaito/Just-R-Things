@@ -1,0 +1,71 @@
+---
+title: "`Foreach` Loops and Performance of Parallel Processing in R"
+author: "Riki Saito"
+date: "July 20, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is a continuation of the previous post **Set-up Parallel Processing with `doParallel`**. Now that you R is set up for parallel processing, let's run some parallel processing tasks.
+
+## Using `foreach`
+
+The function `foreach` (package `foreach`) has a slightly different syntax from the `for` function in the base R package. For one, instead of the usual `for(i in 1:10)` syntax for assigning iterations, instead we use `foreach(i = 1:10)`. You can even do `foreach(icount(10))`, which will automatically start the iteration at 1 and end with whatever number you supply the `icount` function. 
+
+`foreach` takes several other arguments, but one that is most notable is `.combine`, which allows you to specify how to combine the results (e.g. c, rbind, cbind). If the output in each iteration is a single value, we could use `.combine = c` to produce a vector of outputs. In this example, we will output the coefficients of a regression model and combine the results with `rbind`.
+
+## Performance of Parallel Processing
+
+Now let's compare the performance of parallel processing using this example of a simple logistic regression with various number of loops (`trial`, shown at the top of each plot) and data sizes `n`:
+
+```{r, eval = F}
+pacman::p_load(doParallel, foreach)
+
+cores <- detectCores()
+cl <- makeCluster(cores[1])
+registerDoParallel(cl)
+
+trials <- c(1:2, 5, 10, 15, 20, 30, 40, 50, 100, 150, 200)
+N <- c(10000, 50000, seq(100000, 500000, by = 100000), 1000000)
+
+proc_time <- 
+foreach(trial = trials, .combine = rbind) %do% {
+  foreach(n = N, .combine = rbind) %do% {
+    stime <- system.time({
+      foreach(icount(trial), .combine = rbind) %do% {
+        x <- rnorm(n)
+        y <- sample(0:1, n, replace=T)
+        fit <- glm(y~x, family=binomial(logit))
+        coef(fit)
+      }
+    })[3]
+    
+    ptime <- system.time({
+      foreach(icount(trial), .combine = rbind) %dopar% {
+        x <- rnorm(n)
+        y <- sample(0:1, n, replace=T)
+        fit <- glm(y~x, family=binomial(logit))
+        coef(fit)
+      }
+    })[3]
+    data.frame(trial, n, stime, ptime)
+  }
+}
+```
+
+```{r, echo = F, fig.align='center'}
+pacman::p_load(ggplot2, dplyr, tidyr)
+proc_time <- readRDS("C:/Users/rjsai/Dropbox/Data Science/Just R Things/ParallelProcessing/proc_time.rds") %>%
+  filter(!trial %in% c(3,4,25)) %>%
+  gather("proc","seconds", 3:4)
+
+proc_time %>%
+  ggplot(aes(x = n, y = seconds)) + geom_line(aes(col = proc)) + geom_point(aes(col = proc)) + facet_wrap( ~ trial, ncol = 3, scales = "free_y") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#Note:  `stime` are single-core run and `ptime` are parallel-core runs
+```
+
+Now you may notice that the performance is faster for single-core runs at lower number of trials, and only become faster when the number of trials is 10 or more. This is mostly due to the fact that, in a parallel processing framework, tasks need to be split before they are sent to the processor to be run, and sent back to be rejoined. This adds time to the whole process. So for example, if you have a large number of small tasks, it might end up spending a lot of time splitting and rejoining tasks. In this case, parallel processing is only efficient when the number of loops (`trial`) is 10 or more, and it becomes more efficient with larger data size `n`.
+

@@ -1,0 +1,51 @@
+---
+title: "Install and Load Multiple R Packages in One Line with `Pacman`"
+author: "Riki Saito"
+date: "July 10, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Welcome to Just R Things! I am a Master's student in Statistics at the University of Minnesota and an aspiring Data Scientist. This is my first blog post of many to come about tricks, tips, and useful techniques in writing R code/scripts. My focus will be on simple R codes that are easy to implement and allow any common R user to turn their long and messy scripts into efficient and aesthetically appealing codes that will wow your classmates or colleagues. Since this is my first post, I find it fitting to start with the beginning of any script: installing and downloading packages.  
+
+##  Introduction to `Pacman`
+
+If you're a religious [R-bloggers](http://www.r-bloggers.com/) follower like myself, you might know of the recent new fad about packages like  `dplyr `, `tidyr`, `magrittr`, and `data.table` (if you don't, it's never too late to learn them!). If you like to write clean and efficient codes with easy-to-use SQL-like functions like `select`, `filter`, and `group_by` while nesting several statements with the piping operator `%>%`, you might find yourself using these packages (if you don't know what these are, no worries: I will blog about them in the future). However, you might find yourself writing the beginning of your script like this (and I used to do this too):
+
+```{r, eval = F}
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(data.table)
+```
+
+While this is not exactly messy and is perfectly acceptable, it still does take up 4 lines of code. However, if someone else wanted to use your script and they do not have these packages installed, they would have to install them first before loading them, so they would then have to run something like this:
+
+```{r, eval = F}
+install.packages("dplyr")
+install.packages("tidyr")
+install.packages("magrittr")
+install.packages("data.table")
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(data.table)
+```
+
+Now it is 8 lines of code. Yikes. 
+
+I recently learned of a package called [`pacman`](https://cran.r-project.org/web/packages/pacman/vignettes/Introduction_to_pacman.html) that allows you to install AND load multiple packages in a mere single line of code. The function `p_load` in the package will take multiple arguments of package names (you don't even need to wrap them in quotations!) and load existing packages and install missing ones before load. This means if you already have the package `pacman` installed in your library, you can use the function `p_load` to collapse your 4 or 8 lines of code into just one (two lines if you need to install `pacman`):
+
+```{r, eval = F}
+install.packages("pacman")  #Only if you don't already have pacman
+pacman::p_load(dplyr, tidyr, magrittr, data.table)
+```
+
+Also note that `package::function` allows you to access a function from a specific package without having to load the entire package, another useful trick.
+
+
+
+

@@ -1,0 +1,51 @@
+---
+title: "Create Progress Bars to Monitor `for` Loops"
+author: "Riki Saito"
+date: "July 21, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this post we will introduce the use of progress bars in your for loops. Progress bars are useful to track and monitor the progress of your loops, especially ones that seem to take a long time. For instance, if you are running a loop and perhaps you want to work on something else or leave the desk for a bit, with a progress bar you can get a general idea of how much longer your loop might take, and you can plan accordingly. If the procedures in your function are of different sizes, it can also be used to inspect how long each iteration of your loop takes, or identify which iteration is taking longer. 
+
+## Set up your Progress Bars
+
+First you need to create an "empty" progress bar window. The function to create the bar is `winProgresBar` (for Mac users, I believe you need to use `txtProgressBar`). You can include a title, and you will need to specify the min and max values of the bar. This should go on the outside of your loop:
+
+```{r, eval = F}
+len <- trials
+pb <- winProgressBar(title, min = 0, max = len, width = 300)
+```
+
+To update the progress bar Within the loop with every iteration, include this:
+
+```{r, eval = F}
+Sys.sleep(0.1); setWinProgressBar(pb, i, title=paste("Trial:", i, "out of", len, "done"))
+```
+
+Now we will apply this to a real example. We will create a generic regression loop using a `foreach` loop as follows:
+
+```{r, eval = F}
+pacman::p_load(foreach)
+
+trials <- 200
+n <- 100000
+
+out <- foreach(i = seq_len(trials), .combine = rbind) %do% {
+  x <- rnorm(n)
+  y <- sample(0:1, n, replace=T)
+  fit <- glm(y~x, family=binomial(logit))
+  coefs <- coef(fit)
+  
+  Sys.sleep(0.1); setWinProgressBar(pb, i, title=paste("Trial:", i, "out of", len, "done"))
+  return(coefs)
+}
+```
+
+Your progress bar should then appear like this:
+
+![](C:\Users\rjsai\Dropbox\Data Science\Just R Things\General\ProgressBar\progbar.ex.png)
+

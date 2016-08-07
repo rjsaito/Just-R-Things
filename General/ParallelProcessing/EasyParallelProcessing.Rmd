@@ -1,0 +1,35 @@
+---
+title: "Set-up Parallel Processing with `doParallel`"
+author: "Riki Saito"
+date: "July 20, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Welcome to my second post in **Just R Things**! I started this blog in hopes to share my knowledge about R and bring to light some of these tricks that has helped me (and hopefully you too) become a better R user. However I am still continuing to learn new things about R everyday, and this blog is in way also a diary for me. I want to try to keep the topics as relevant to everyone as possible, but I also try to keep these tutorials short and simple, so if you have any questions or comments about any of these (or new topics you'd like me to cover) please don't hesitate to leave a **comment**, and I will be sure to respond! Also, if you've liked my blog so far, click **Follow** on the right so you can get weekly updates about new posts!
+
+## Quick Introduction to Parallel Processing
+
+If you don't know what parallel processing is, long story short, it optimizes your computer's ability to compute by splitting tasks and running them on separate cores on your computer's processor, to run these tasks in "parallel". This is commonly used for running repeated tasks such as in `for` loops, where instead of running each iteration of the loop one after the other, you can split up these tasks, send them to different cores, and run these tasks at the same time. You can think of this as "division of labor". 
+
+This becomes very useful especially in processes that take a long time, because the time you save from performing parallel processing scales with how long the process takes. Basically, if your computer has 4 cores, your process can run to 4 times faster. With 8 cores, it can run up to 8 times faster.
+
+
+## Set-up with `doParallel` 
+
+In this tutorial I will show you how to set up R for parallel processing, which only takes a few lines of code. For the set up we will use the R package: `doParallel`. We will install/load it with `p_load` from the package `pacman` (which was introduced [here](https://justrthings.wordpress.com/2016/07/10/install-and-load-multiple-r-packages-in-one-line-with-pacman/?blogsub=confirmed#blog_subscription-3).)
+
+```{r, eval = F}
+pacman::p_load(doParallel)
+
+cores <- detectCores()
+cl <- makeCluster(cores[1])
+registerDoParallel(cl)
+```
+
+The function `detectCores` is used to identify the number of cores your computer's processor has. Then `makeCluster` will set up the parallel processing framework (to easily split tasks and combine results) with the number of cores detected from the previous line. Finally, the  `registerDoParallel` will register the parallel processing backend to be used with `foreach`, a package designed for performing for loops in parallel.
+
+Now that your R is set up for parallel processing, the next post will show you how to set up and perform your tasks in parallel, and also demonstrate the difference in performance between regular and parallel processing.
