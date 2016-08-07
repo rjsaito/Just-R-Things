@@ -47,5 +47,5 @@ out <- foreach(i = seq_len(trials), .combine = rbind) %do% {
 
 Your progress bar should then appear like this:
 
-![](C:\Users\rjsai\Dropbox\Data Science\Just R Things\General\ProgressBar\progbar.ex.png)
+![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\General\ProgressBar\progbar.ex.png)
 

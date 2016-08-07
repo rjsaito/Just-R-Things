@@ -58,7 +58,7 @@ foreach(trial = trials, .combine = rbind) %do% {
 
 ```{r, echo = F, fig.align='center'}
 pacman::p_load(ggplot2, dplyr, tidyr)
-proc_time <- readRDS("C:/Users/rjsai/Dropbox/Data Science/Just R Things/ParallelProcessing/proc_time.rds") %>%
+proc_time <- readRDS("C:/Users/rjsai/Dropbox/Data Science/Just-R-Things/ParallelProcessing/proc_time.rds") %>%
   filter(!trial %in% c(3,4,25)) %>%
   gather("proc","seconds", 3:4)
 
