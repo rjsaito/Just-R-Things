@@ -1,0 +1,96 @@
+---
+title: "Fast Insights with Elegant Correlation Plots using `corrplot`"
+author: "Riki Saito"
+date: "July 24, 2016"
+output: html_document
+---
+
+As a first step in branching out to cover a new topic in R, I'd like to introduce my first post in visualizations in R. This post will focus on creating aesthetically elegant and easy-on-the-eyes correlation plots using the R package `corrplot`.
+
+## Difficulty of Correlation Analysis
+
+Correlation analysis is a great way to perform some initial exploratory analysis of your data to get a sense of the variables and their relationships with each other. However when you have many variables (10 or more, to throw out a number), it is difficult and/or time consuming to obtain any insight from it.
+
+Correlation plots are useful for this reason. They allow one to visualize and analyze the relationships between all variables all at once in one plot. But even with correlation plots, it is often not so easy to visualize all of these relationships in a way that one could really obtain insight from it. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Let us take a look at an example. We will use the Housing Data Set from the UC Irvine Machine Learning Repository, which contains data on the median housing values of Boston along with several associated attributes. Descriptions of the variables in the data set can be found [here](http://archive.ics.uci.edu/ml/machine-learning-databases/housing/housing.names), or in the below table:
+
+| Variable | Description                                                           |
+|----------|-----------------------------------------------------------------------|
+| CRIM     | per capita crime rate by town                                         |
+| ZN       | proportion of residential land zoned for lots over 25,000 sq          |
+| INDUS    | proportion of non-retail business acres per town                      |
+| CHAS     | Charles River dummy variable (= 1 if tract bounds river; 0 otherwise) |
+| NOX      | nitric oxides concentration (parts per 10 million)                    |
+| RM       | average number of rooms per dwelling                                  |
+| AGE      | proportion of owner-occupied units built prior to 1940                |
+| DIS      | weighted distances to five Boston employment centres                  |
+| RAD      | index of accessibility to radial highways                             |
+| TAX      | full-value property-tax rate per $10,000                              |
+| PTRATIO  | pupil-teacher ratio by town                                           |
+| B        | 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town        |
+| LSTAT    | % lower status of the population                                      |
+| MEDV     | Median value of owner-occupied homes in $1000's                       |
+
+
+## Correlation Plots with `corrplot`
+
+The R Package `corrplot` is a very useful tool for creating visually coherent correlation plots. Let's try this function with the default settings:
+
+```{r, fig.width=7, fig.height=7, fig.align='center'}
+bh <- read.table("http://archive.ics.uci.edu/ml/machine-learning-databases/housing/housing.data")
+names(bh) <- c("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT","MEDV")
+pacman::p_load(corrplot)
+corrplot(cor(bh))   
+```
+
+By default this function will create a color scale of the correlation values, and create circles in each cell of the correlation matrix/plot with the associated color. The size of the circles are also an indicator of the magnitude of the correlation, with larger circles representing a stronger relationship (positive or negative). 
+
+So this already looks pretty nice, but perhaps this is really only useful when you know exactly what you are looking for, or if you want to identify the general strength of the relationship between two specific variables. But we cannot see the actual values of the correlations.
+
+If we also want to know the actual correlation values, we can add those onto each cell this way:
+
+```{r, fig.width=7, fig.height=7, fig.align='center'}
+corrplot(cor(bh), method="number", diag=F)
+```
+
+Now instead of circles with size as the indicator of the relationship strength, we can see the actual values. But now its a little less easy to quickly identify the strength of these relationships. We also need to note that in these examples, it is not easy to identify "groups" of variables that share a strong relationship with everyone in the "group".
+
+For this problem, we can add grouping of variables (hierarchical clustering, according to correlation), with a user-specified number of groups (rectangles) to categorize varaibles into. Let's say we are interested in grouping these variables into two groups:
+
+```{r, fig.width=7, fig.height=7, fig.align='center'}
+corrplot(cor(bh), method="number", order="hclust", addrect=2, diag=F)
+```
+
+It is now easy to see these groups of relationships. In this scenario, we have two groups of variables that share a positive relationship with other members within the group, and a negative relationship with members of the other group. Now it becomes easy to obtain insight about groups of variables that share similar patterns.
+
+Finally, I want to show you just how much you can customize these correlation plots. I've created a function that computes the Pearson p-values of these correlations, and add them to the upper triangle of the plot along with the circles indicating the strength of the relationship, while keeping the lower triangle the same as the previous example:
+
+```{r, fig.width=7, fig.height=7, fig.align='center'}
+cor.test.mat <- function(mat){
+  n <- ncol(mat)
+  pmat <- matrix(0, nrow = n, ncol = n)
+  for(i in 1:(n-1)){
+    for(j in (i+1):n){
+      pmat[i,j] <- cor.test(mat[,i], mat[,j], method="pearson")$p.value
+    }
+  }
+  pmat[lower.tri(pmat)] <- t(pmat)[lower.tri(pmat)] #fill lower triangle with upper triangle
+  return(pmat)
+}  
+  
+#compute matrix of p-values
+pvals <- cor.test.mat(bh)
+
+corrplot(cor(bh), method="number", order="hclust", addrect=2, diag=F)
+corrplot(cor(bh), p.mat = pvals, sig.level=0, insig = "p-value", method="ellipse", order="hclust", 
+         type="upper", addrect=2, tl.pos = "n", cl.pos="n", diag=F, add=T)
+```
+
+Correlation values are not always the best indicator of the strength of relationships because it depends on your sample size, but now with p-values on the upper triangle we can see that actually most of these relationships have a statistically significant relationship (rounded to the nearest 100th place).
+
+There are many ways of customizing `corrplot`: you can find all these options here: http://www.inside-r.org/packages/cran/corrplot/docs/corrplot
