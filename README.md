@@ -1,6 +1,5 @@
-#Just R Things
 
-<img src="https://github.com/rjsaito/Just-R-Things/blob/master/justrthings_logo.png" width="140" height="120" />
+<img src="https://github.com/rjsaito/Just-R-Things/blob/master/justrthings_logo.png" width="200" height="175" />
 
 https://justrthings.wordpress.com/
 
