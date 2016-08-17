@@ -1,0 +1,118 @@
+---
+title: "Sentiment Analysis using a Word Cloud"
+author: "Riki Saito"
+date: "August 7, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+pacman::p_load(dplyr, stringr, rvest, wordcloud, tm, colorspace, slam)
+
+
+
+
+#Remove all white space
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+#Clean strings (lower case, remove punctation, remove all white space)
+str_clean <- function(strings) {
+  require(dplyr)
+  strings %>%
+    tolower() %>%
+    removePunctuation() %>%
+    stripWhitespace() %>%
+    trim()  
+}
+
+
+
+#wrapper function for sentiment score, from https://www.r-bloggers.com/sentiment-analysis-on-donald-trump-using-r-and-tableau/
+sentiment_scores = function(tweets, positive_words, negative_words){
+  scores = sapply(tweets,
+                 function(tweet, positive_words, negative_words){
+                   tweet = gsub("[[:punct:]]", "", tweet)    # remove punctuation
+                   tweet = gsub("[[:cntrl:]]", "", tweet)   # remove control characters
+                   #tweet = gsub('\\d+', '', tweet)          # remove digits
+                   
+                   # Let's have error handling function when trying tolower
+                   tryTolower = function(x){
+                     # create missing value
+                     y = NA
+                     # tryCatch error
+                     try_error = tryCatch(tolower(x), error=function(e) e)
+                     # if not an error
+                     if (!inherits(try_error, "error"))
+                       y = tolower(x)
+                     # result
+                     return(y)
+                   }
+                   # use tryTolower with sapply
+                   tweet = sapply(tweet, tryTolower)
+                   # split sentence into words with str_split function from stringr package
+                   word_list = str_split(tweet, "\\s+")
+                   words = unlist(word_list)
+                   # compare words to the dictionaries of positive & negative terms
+                   positive.matches = match(words, positives)
+                   negative.matches = match(words, negatives)
+                   # get the position of the matched term or NA
+                   # we just want a TRUE/FALSE
+                   positive_matches = !is.na(positive.matches)
+                   negative_matches = !is.na(negative.matches)
+                   # final score
+                   score = sum(positive_matches) - sum(negative_matches)
+                   return(score)
+                 }, positive_matches, negative_matches)
+  return(scores)
+}
+
+```
+
+
+<!-- #load source functions -->
+<!-- source("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Natural%20Language%20Processing/str_cleaner.R") -->
+<!-- source("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Natural%20Language%20Processing/Sentiment%20Analysis/sentiment_scores.R") -->
+
+#load reviews
+reviews <- read.csv("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Natural%20Language%20Processing/Sentiment%20Analysis/reviews_ueboom.csv", stringsAsFactors = F)
+
+
+#load lexicon
+positives <- readLines("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Natural%20Language%20Processing/lexicon/positive-words.txt")
+negatives <- readLines("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Natural%20Language%20Processing/lexicon/negative-words.txt")
+
+
+reviews_clean <- reviews$comment %>%
+  str_clean() %>%
+  VectorSource() %>%
+  Corpus() %>%
+  tm_map(PlainTextDocument) %>%
+  tm_map(removeWords, stopwords('english')) 
+
+#sentiment scores
+review_score <- sentiment_scores(reviews_clean, positives, negatives)
+names(review_score) = 1:length(review_score)
+
+reviews_tm <- TermDocumentMatrix(reviews_clean)
+word_score <- with(reviews_tm, data.frame(doc = j, word_ind = i)) %>%
+  merge(data.frame(review_score), by.x = "doc", by.y = "row.names") %>%
+  group_by(word_ind) %>%
+  summarise(avg_sc = mean(review_score)) %>%
+  merge(data.frame(word = reviews_tm$dimnames$Terms, stringsAsFactors = F), by.x = "word_ind", by.y = "row.names")
+
+word_color <- word_score$avg_sc %>%
+  rank() %>%
+  round() %>%
+  diverge_hcl(diff(range(.)), h = c(0, 120))[.]
+
+
+freq <- row_sums(reviews_tm)
+words <- names(freq)
+
+wordcloud(words, freq, colors = word_color, max.words = 100)  
+```
