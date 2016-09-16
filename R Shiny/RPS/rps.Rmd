@@ -1,0 +1,111 @@
+---
+title: "Building a `Shiny` Application for a Rock-Paper-Scissors Game"
+author: "Riki Saito"
+date: "September 16, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+R Shiny is a Web Application tool for R that allows anyone to convert their R code into an interactive application that one can host locally on a public or private server for others to use. This is a great new tool that has been in development over the last few years. R has never had an interactive or collaborative aspect to its framework, but with R Shiny that is now possible.
+
+I've been wanting to learn the behind-the-scenes backend coding in these applications, and I decided to create my own R Shiny application https://rjsaito.shinyapps.io/RPSapp/. This application is a simple rock-paper-scissors game that keeps track of the user's moves, and the future for this project is to use that data to develop a machine learning framework that would "learn" how the user plays, and hopefully improve in performance the more it is played.
+
+# Rock Paper Scissors - A Game of Chance?
+
+A game that is basically universal and everyone knows, rock paper scissors has been a go-to game for situations where the outcome is desired to be left to chance. Whether it's to determine who gets the last slice of pizza, or [who wins the right to sell a $20 million art collection](http://www.nytimes.com/2005/04/29/arts/design/rock-paper-payoff-childs-play-wins-auction-house-an-art-sale.html), people assume that rock paper scissors is an equal-chance game where the participants (if one on one) has a evenly-split 50% chance of winning and 50% chance of losing.
+
+Science tells us otherwise - actually, rock paper scissors is not a game of equal chance, when played **by people**. Theoretically, rock paper scissors is an equal-chance game, if the moves are generated at complete random. However, people are notoriously terrible at generating random choices, as we are influenced by physiologial and psychological factors. 
+
+For instance, there are several literatures (e.g. [this one](https://arxiv.org/pdf/1404.5199.pdf)) that has proven some basic patterns that occurs in rock paper scissors, one of which is famously known as the win-stay lose-shift strategy. In a multi-round game of rock paper scissors, players' current moves are influenced by previous moves and outcomes. This makes rock-paper-scissors an interesting game where the current moves of players are conditioned on past events, and these psychological behaviors can be modeled on an individual level or even on larger groups or the whole population.
+
+Prospectively I would like to create a bot that would consider both these psychological elements, as well as behaviors uncovered by some modeling or machine learning. 
+
+# The `Shiny` Application
+
+I deployed [this application](https://rjsaito.shinyapps.io/RPSapp/) to first collect data on rock paper scissors games between human players vs. a bot that randomly generates moves, and analyze behavior to hopefully build a bot that is smarter and can actually beat the odds in this supposedly equal-chance game. 
+
+It is a simple game but deceivingly, there is a lot that happens in the backend of this application. Shiny applications are written in 2 components: the user interface (UI.R) that renders all the visual elements on the frontend of the application, and the server (server.R) that does all the work behind-the-scenes. The two scripts that I wrote for this application can be found here: https://github.com/rjsaito/Just-R-Things/tree/master/R%20Shiny/RPS
+
+![](https://comic.browserling.com/full-stack-fb.png)
+
+
+
+There are 2 major concepts used in this application that plays a major role: 1) reactive programming, and 2) persistent data storage.
+
+## Reactive Programming
+
+The front-end interface and experience of this application seems pretty simple- when the application is opened, you choose from 3 choices (rock, paper, scissors), and when you make a move, you engage in a round of rock-paper-scissors, and you see the round result. When you win, new player "winning" image appears, and when you lose, another player "losing" image appears. You play the game to 5, and once either the player or the bot reaches 5 wins, the game is over, at which you are given the option to play again. The application is built for many people to play, and all their moves are then stored in a remote data storage (Dropbox).
+
+![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\R Shiny\RPS\demo.gif)
+
+All of this happens through a concept called **reactive programming**. Basically it's an event(s) or value(s) change that is assigned to be executed when something is triggered. In an application, these triggers are often inputs by the user of the application. For instance, when a player chooses one of the three options (rock, paper, or scissors), that triggers the bot to generate a random move, which triggers a function that determines the outcome, which triggers the correct images to be rendered in the user interface, and so forth. Reactive programming is what allows applications to be interactive - user inputs triggers reactions and events which produces new data or results and are rendered in the user interface. 
+
+Here is a snippet of the application:
+
+```{r, eval = F}
+  #when any of three buttons clicked, update values$move
+  observeEvent(input$in_rock, values$move  <- "rock", priority = 2)
+  observeEvent(input$in_scissors, values$move  <- "scissors", priority = 2)
+  observeEvent(input$in_paper, values$move  <- "paper", priority = 2)
+  
+  #trigger when any of three buttons clicked
+  clicked <- reactive(c(input$in_rock, input$in_scissors, input$in_paper))
+  
+  #event clicked() triggered, do following
+  observeEvent(clicked(), {
+    #append current move to sequence of past moves
+    values$moves <- c(values$moves, values$move)
+    #generate random bot move
+    values$computer <- if(any(clicked() > 0 )) random_move()
+    #append current move to sequence of past moves
+    values$computers <- c(values$computers, values$computer)
+    #compute outcome of game according to player/bot move
+    values$outcome <- oc(which(choices == values$move) - which(choices == values$computer))
+    #append current move to sequence of past moves
+    values$outcomes <- c(values$outcomes, values$outcome)
+  })
+```
+
+The three buttons are associated with the three inputs `input$in_Rock`, `input$in_scissors`, and `input$in_paper`. When any of these buttons are clicked, the player's current move `values$move` is updated accordingly. We also create a trigger `clicked`, which is a reactive element that responds to any of the three buttons being clicked. That then triggers several statements, such as appending the player's current move to a sequence of all moves, generating a random bot move, and computing the result.
+
+
+## Persistent Data Storage
+
+Because this application is build for multiple people to play, even simulateously, and we need to maintain and store data on all of their moves and results, a data storage framework is necessary. When the application is opened by a user, files such as images, data, and R objects must be stored on memory on the user's local system. In addition, data that is meant to be continuously updated (such as frequency table of moves and outcomes by all past players) needs to be stored in such a way that all application instances has access to one data location, regardless of who or how many people are using the application at the same time. Such case would require a **persistent data storage**.
+
+I found the best (in terms of easy-of-use and security) method of persistent data storage with an R Shiny application is using a Dropbox account. In R, there is a package `rdrop2` that allows an R session to connect to a Dropbox account with the proper authentication, and have the ability to read/write files to/from the account. 
+
+For this application, I created a new account (since I didn't want to risk using my existing account), uploaded the data to be updated continously, and everytime someone uses the application, the changes would be applied to the files in that account.
+
+Here are some functions I modified (from package `rdrop2`) to read/save .rds files (.rds files are a singe R object)
+
+
+```{r, eval = F}
+#authenticate dropbox
+token <- readRDS("drop_token.rds")
+drop_acc(token)
+
+#read/write functiosn for rds files to dropbox
+drop_readRDS <- function(file, dest = tempdir(), dtoken = get_dropbox_token(), ...) {
+  localfile = paste0(dest, "/", basename(file))
+  drop_get(file, local_file = localfile, overwrite = TRUE, dtoken = dtoken)
+  readRDS(localfile, ...)
+}
+
+drop_saveRDS <- function(data, dest = "data", dtoken = get_dropbox_token(), ...) {
+  localfile = paste0(tempdir(), "/", basename(dest))
+  saveRDS(data, localfile)
+  drop_upload(localfile, dirname(dest), dtoken = dtoken)
+}
+
+#download and load data. data must be loaded locally first before loading in the session
+dt1in = drop_readRDS("rpsdata/dt1.rds", dest = getwd(), dtoken = token)
+dt2in = drop_readRDS("rpsdata/dt2.rds", dest = getwd(), dtoken = token)
+dt3in = drop_readRDS("rpsdata/dt3.rds", dest = getwd(), dtoken = token)
+
+```
