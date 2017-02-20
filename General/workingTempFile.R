@@ -1,4 +1,4 @@
-workingTempFile = function (x) {
+wtFile = function (x) {
   tempFilePath = paste(tempfile(), ".csv")
   tempPath = dirname(tempFilePath)
   preferredFile = paste(deparse(substitute(x)), ".csv", sep = "")
