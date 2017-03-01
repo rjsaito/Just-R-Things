@@ -37,5 +37,5 @@ proc_time %>%
   gather("proc","seconds", 3:4) %>%
   ggplot(aes(x = n, y = time)) + geom_line(aes(col = proc)) + geom_point(aes(col = proc)) + facet_wrap( ~ trial, ncol = 3, scales = "free_y") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-saveRDS(proc_time, "C:/Users/rjsai/Dropbox/Data Science/Just R Things/ParallelProcessing/proc_time.rds")
+saveRDS(proc_time, ".../proc_time.rds")
   
