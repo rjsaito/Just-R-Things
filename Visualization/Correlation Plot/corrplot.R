@@ -2,7 +2,7 @@
 
 
 pacman::p_load(lme4, lmerTest, corrplot, multcomp, tidyr, dplyr, ggplot2, knitr)
-movies = read.csv("C:/Users/rjsai/Dropbox/UMN Courses/STAT 8801/movies.csv")
+movies = read.csv("...movies.csv")
 
 
 #replace missing with median
