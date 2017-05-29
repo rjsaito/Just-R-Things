@@ -1,11 +1,3 @@
-# 5/15/2017
-# Riki Saito rsaito@mazdausa.com
-# Multi-Armed Bandit Test
-
-
-# Set path
-setwd("C:/Users/rjsai/Dropbox/Data Science/Just-R-Things/Machine Learning/Multi Armed Bandit/") 
-
 # binomial trial function
 trial = function(n = c(100, 100), p = c(.5, .5)){
   x = rbinom(n[1], 1, p = p[1])
