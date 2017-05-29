@@ -1,4 +1,9 @@
-pacman::p_load(shiny, shinyjs, DT, shinythemes, V8)
+library("shiny");
+library("shinyjs");
+library("shinythemes")
+library("DT")
+library("V8")
+
 
 jsResetCode <- "shinyjs.reset = function() {history.go(0)}"
 
@@ -18,7 +23,7 @@ shinyUI(navbarPage(theme = shinytheme("flatly"), "Rock Paper Scissors",
       fluidRow(
         column(2, imageOutput("playerImage", width = "200px", height = "230px")),
         column(1, imageOutput("playerMove", width = "80px", height = "80px")),  
-        column(3, textOutput("result"), align = "center"),
+        column(3, h2("RPS - Game to 5"), textOutput("result"), align = "center"),
         column(1, imageOutput("botMove", width = "80px", height = "80px")),  
         column(2 ,imageOutput("botImage", width = "200px", height = "230px"))
       ),
@@ -52,13 +57,14 @@ shinyUI(navbarPage(theme = shinytheme("flatly"), "Rock Paper Scissors",
       ),
       fluidRow(
         column(2,
+          align = "center",
           extendShinyjs(text = jsResetCode),  
           actionButton("refreshButton", "New Game"),
-          offset = 4
+          offset = 3
         )
       ),
       fluidRow(
-        column(3, h3("Game Statistics"), offset = 3)
+        column(3, h2("Game Statistics"), offset = 3)
       ),
       fluidRow(
         column(5, dataTableOutput("ftFinish"), offset = 1)

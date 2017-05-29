@@ -181,7 +181,7 @@ $(document).ready(function () {
 <p>Because this application is build for multiple people to play, even simulateously, and we need to maintain and store data on all of their moves and results, a data storage framework is necessary. When the application is opened by a user, files such as images, data, and R objects must be stored on memory on the user’s local system. In addition, data that is meant to be continuously updated (such as frequency table of moves and outcomes by all past players) needs to be stored in such a way that all application instances has access to one data location, regardless of who or how many people are using the application at the same time. Such case would require a <strong>persistent data storage</strong>.</p>
 <p>I found the best (in terms of easy-of-use and security) method of persistent data storage with an R Shiny application is using a Dropbox account. In R, there is a package <code>rdrop2</code> that allows an R session to connect to a Dropbox account with the proper authentication, and have the ability to read/write files to/from the account.</p>
 <p>For this application, I created a new account (since I didn’t want to risk using my existing account), uploaded the data to be updated continously, and everytime someone uses the application, the changes would be applied to the files in that account.</p>
-<p>Here are some functions I modified (from package <code>rdrop2</code>) to read/save .rds files (.rds files are a singe R object)</p>
+<p>Here are some functions I modified (from package <code>rdrop2</code>) to read/save .rds files (.rds files are a single R object), and a code snippet from the application:</p>
 <pre class="r"><code>#authenticate dropbox
 token &lt;- readRDS(&quot;drop_token.rds&quot;)
 drop_acc(token)
@@ -202,7 +202,16 @@ drop_saveRDS &lt;- function(data, dest = &quot;data&quot;, dtoken = get_dropbox_
 #download and load data. data must be loaded locally first before loading in the session
 dt1in = drop_readRDS(&quot;rpsdata/dt1.rds&quot;, dest = getwd(), dtoken = token)
 dt2in = drop_readRDS(&quot;rpsdata/dt2.rds&quot;, dest = getwd(), dtoken = token)
-dt3in = drop_readRDS(&quot;rpsdata/dt3.rds&quot;, dest = getwd(), dtoken = token)</code></pre>
+dt3in = drop_readRDS(&quot;rpsdata/dt3.rds&quot;, dest = getwd(), dtoken = token)
+
+...
+
+#save table/data as .rds files onto Dropbox
+observe(if(completed() == 1) {
+  drop_saveRDS(dt1a(), dest = &quot;rpsdata/dt1.rds&quot;, dtoken = token)
+  drop_saveRDS(dt2a(), dest = &quot;rpsdata/dt2.rds&quot;, dtoken = token)
+  drop_saveRDS(dt3a(), dest = &quot;rpsdata/dt3.rds&quot;, dtoken = token)
+}, priority = -1)</code></pre>
 </div>
 </div>
 

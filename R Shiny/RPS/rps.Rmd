@@ -82,8 +82,7 @@ I found the best (in terms of easy-of-use and security) method of persistent dat
 
 For this application, I created a new account (since I didn't want to risk using my existing account), uploaded the data to be updated continously, and everytime someone uses the application, the changes would be applied to the files in that account.
 
-Here are some functions I modified (from package `rdrop2`) to read/save .rds files (.rds files are a singe R object)
-
+Here are some functions I modified (from package `rdrop2`) to read/save .rds files (.rds files are a single R object), and a code snippet from the application:
 
 ```{r, eval = F}
 #authenticate dropbox
@@ -108,4 +107,15 @@ dt1in = drop_readRDS("rpsdata/dt1.rds", dest = getwd(), dtoken = token)
 dt2in = drop_readRDS("rpsdata/dt2.rds", dest = getwd(), dtoken = token)
 dt3in = drop_readRDS("rpsdata/dt3.rds", dest = getwd(), dtoken = token)
 
+...
+
+#save table/data as .rds files onto Dropbox
+observe(if(completed() == 1) {
+  drop_saveRDS(dt1a(), dest = "rpsdata/dt1.rds", dtoken = token)
+  drop_saveRDS(dt2a(), dest = "rpsdata/dt2.rds", dtoken = token)
+  drop_saveRDS(dt3a(), dest = "rpsdata/dt3.rds", dtoken = token)
+}, priority = -1)
+
 ```
+
+

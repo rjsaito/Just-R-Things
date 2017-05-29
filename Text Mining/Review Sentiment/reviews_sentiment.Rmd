@@ -9,81 +9,45 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Introduction
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+I've recently began to explore a new field that I've always had an interest in: Web Scraping and Text Mining. In this post, I will discuss how to scrape reviews and related information of Amazon products, and how to perform a basic sentiment analysis on the reviews.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## How to Scrape the Web in R
+
+Most things on the web are actually scrapable. By selecting certain elements or paths of any given webpage and extracting parts of interest (also known as parsing), we are able to obtain data. A simple example of webscraping in R can be found in this awesome [blog post](https://blog.rstudio.org/2014/11/24/rvest-easy-web-scraping-with-r/) on R-bloggers.
+
+We will use Amazon for an example in this post. Let's say we have the ASIN code of a product **B0043WCH66**. Let's scrape the product name of this on Amazon. The URL of Amazon's product pages are easy to build; simply concatenate the ASIN code to the "base" URL as such: https://www.amazon.com/dp/B0043WCH66. 
+
+![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\Text Mining\Review Sentiment\product_page.png)
+
+
+We build the URL, and point to a specific **node** `#productTitle` of the HTML web page using the CSS selector (read about CSS Selector and how to obtain it using the SelectorGadget [here](http://selectorgadget.com/)). Finally, we clean and parse the text to obtain just the product name:
 
 ```{r cars}
-pacman::p_load_gh("trinker/sentimentr")
 pacman::p_load(XML, dplyr, stringr, rvest, audio)
 
 #Remove all white space
 trim <- function (x) gsub("^\\s+|\\s+$", "", x)
 
-#input: html document
-amazon_scraper <- function(doc){
-
-  #Remove all white space
-  trim <- function (x) gsub("^\\s+|\\s+$", "", x)
-  
-  title <- doc %>%
-    html_nodes("#cm_cr-review_list .a-color-base") %>%
-    html_text()
-  
-  author <- doc %>%
-    html_nodes(".review-byline .author") %>%
-    html_text()
-  
-  date <- doc %>%
-    html_nodes("#cm_cr-review_list .review-date") %>%
-    html_text() %>% 
-    gsub(".*on ", "", .)
-  
-  ver.purchase <- doc%>%
-    html_nodes(".review-data.a-spacing-mini") %>%
-    html_text() %>%
-    grepl("Verified Purchase", .) %>%
-    as.numeric()
-  
-  format <- doc %>% 
-    html_nodes(".review-data.a-spacing-mini") %>% 
-    html_text() %>%
-    gsub("Color: |\\|.*|Verified.*", "", .)
-  
-  stars <- doc %>%
-    html_nodes("#cm_cr-review_list  .review-rating") %>%
-    html_text() %>%
-    str_extract("\\d") %>%
-    as.numeric()
-  
-  comments <- doc %>%
-    html_nodes("#cm_cr-review_list .review-text") %>%
-    html_text() 
-  
-  helpful <- doc %>%
-    html_nodes(".cr-vote-buttons .a-color-secondary") %>%
-    html_text() %>%
-    str_extract("[:digit:]+|One") %>%
-    gsub("One", "1", .) %>%
-    trim()
-  
-  df <- data.frame(title, author, date, ver.purchase, format, stars, comments, helpful, stringsAsFactors = F)
-  
-  return(df)
-}
-```
-
-Scrape some data
-
-```{r, eval=F}
 prod_code = "B0043WCH66"
-
 url <- paste0("https://www.amazon.com/dp/", prod_code)
 doc <- read_html(url)
 
+#obtain the text in the node, remove "\n" from the text, and remove white space
 prod <- html_nodes(doc, "#productTitle") %>% html_text() %>% gsub("\n", "", .) %>% trim()
+prod
+
+```
+
+With this simple code, we were able to obtain the product name of this ASIN code.
+
+Now say we want to scrape more data of the product **Bose® MIE2i Mobile Headset**. We will use a function `amazonscraper` (available on my [github](https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Text%20Mining/amazonscraper.R)). We will pull the first 10 pages of reviews:
+
+```{r, eval=F}
+#Source funtion to Parse Amazon html pages for data
+source("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Text%20Mining/amazonscraper.R")
+
 pages <- 10
 
 reviews_all <- NULL
@@ -91,9 +55,8 @@ for(page_num in 1:pages){
   url <- paste0("http://www.amazon.com/product-reviews/",prod_code,"/?pageNumber=", page_num)
   doc <- read_html(url)
   
-  reviews <- amazon_scraper(doc)
+  reviews <- amazon_scraper(doc, reviewer = F, delay = 2)
   reviews_all <- rbind(reviews_all, cbind(prod, reviews))
-  wait(2)
 }
 ```
 
@@ -102,21 +65,33 @@ reviews_all = read.csv("C:/Users/rjsai/Documents/reviews.csv", stringsAsFactors 
 str(reviews_all)
 ```
 
+With `amazonscraper`, we obtained several values for each of the first 100 reviews of the product.
 
-sentiment aggregated
+## Sentiment Analysis in R
+
+Now that we were able to obtain all this data, what can we do with this? Sure, we can read through all these reviews to see what people are saying about this product or how they feel about it, but that doesn't seem like a good use of time. That's where Sentiment Analysis comes in handy.
+
+Sentiment Analysis is a Natural Langauge Processing method that allows us to obtain the general sentiment or "feeling" on some text. Sure we can just look at the star ratings themselves, but actually star ratings are not always consistent with the sentiment of the reviews. Sentiment is measured on a polar scale, with a negative value representing a negative sentiment, and positive value representing a positive sentiment.
+
+Package 'sentimentr' allows for quick and simple yet elegant sentiment analysis, where sentiment is obtained on each sentences within reviews and aggregated over the whole review. In this method of sentiment analysis, sentiment is obtained by identifying **tokens** (any element that may represent a sentiment, i.e. words, punctiation, symbols) within the text that represent a postive or negative sentiment, and scores the text based on number of positive tokens, negative tokens, length of text, etc:
 
 ```{r}
-sent_agg <- with(reviews_all, sentiment_by(comments)) 
+pacman::p_load_gh("trinker/sentimentr")
+
+sent_agg <- with(reviews_all, sentiment_by(comments))
 head(sent_agg)
-```
 
-distribution of sentiment
-
-```{r}
+par(mfrow=c(1,2))
+with(reviews_all, hist(stars))
 with(sent_agg, hist(ave_sentiment))
+
+mean(reviews_all$stars)
+mean(sent_agg$ave_sentiment)
 ```
 
-best
+You can see here there is a major inconsistency between stars and sentiment, even just by comparing the distrubution of both. In addition, while the average star rating is 3.5, the average sentiment is actually distrubuted around near 0 (neutral sentiment).
+
+Now let's see how these sentiments are actually being determined at the sentence level. Let's obtain the reviews with highest sentiment and lowest sentiment, and take a look. The function `highlight` in `sentimentr` allows us to do this easisly.
 
 ```{r, eval = F}
 best_reviews <- slice(reviews_all, top_n(sent_agg, 3, ave_sentiment)$element_id)
@@ -125,7 +100,6 @@ with(best_reviews, sentiment_by(comments)) %>% highlight()
 
 ![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\Text Mining\Review Sentiment\positive_reviews.png)
 
-worst 
 
 ```{r, eval = F}
 worst_reviews <- slice(reviews_all, top_n(sent_agg, 3, -ave_sentiment)$element_id)
@@ -133,3 +107,9 @@ with(worst_reviews, sentiment_by(comments)) %>% highlight()
 ```
 
 ![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\Text Mining\Review Sentiment\negative_reviews.png)
+
+While the positive reviews have all positive sentiments, the negative reviews are actually a mix of positive and negative, where the negative significantly outweights the positive.
+
+While these sentiments do not perfectly capture the true sentiments in these reviews, it is a quick and decently accurate method to quickly obtain the sentiments of these reviewers.
+
+This method of sentiment analysis is a simple approach, and there are a number of widely known methods of sentiment anaylsis (one of which I am interested is in a machine learning approach to sentiment analysis) that involve analysing text by considering sequence of words and relationships between these sequence of words (here is a basic explanation in this [youtube video](https://www.youtube.com/watch?v=89FHXM2q36s)).

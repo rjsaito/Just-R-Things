@@ -1,0 +1,42 @@
+---
+title: "Introduction to Supervised vs. Unsupervised Sentiment Analysis"
+author: "Riki Saito"
+date: "February 12, 2017"
+output: html_notebook
+---
+
+## Introduction
+
+
+## Sentiment Analysis
+
+## Unsupervised
+
+![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\Natural Language Processing\Sentiment Analysis\lexicon-based.png)
+
+Note: if you haven't already installed `pacman`, you should. Refer to XXX
+
+```{r}
+pacman::p_load_current_gh("trinker/lexicon", "trinker/sentimentr")
+
+```
+
+
+Sentiment
+
+Valence Shifters
+
+
+
+## Supervised
+
+![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\Natural Language Processing\Sentiment Analysis\model-based.png)
+
+1) Feature Engineering
+2) Dimension Reduction
+3) Classifier
+
+Naive Bayes with Kernel Principal Components
+
+## Comparison
+

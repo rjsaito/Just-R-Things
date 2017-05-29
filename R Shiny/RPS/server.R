@@ -1,5 +1,9 @@
-#packages
-pacman::p_load(shiny, shinyjs, DT, dplyr, V8)
+library("shiny")
+library("shinyjs")
+library("dplyr")
+library("DT")
+library("rdrop2")
+library("V8")
 
 #declare rps game elements  
 choices <- c("rock", "paper", "scissors")
@@ -27,6 +31,23 @@ seq1 <- merge(choices, results, by = NULL); names(seq1) = c("move","outcome")
 seq2 <- merge(seq1, seq1, by = NULL, suffixes = c(".1",".2")) 
 seq3 <- merge(seq2, seq1, by = NULL); names(seq3)[5:6] = c("move.3", "outcome.3")
 
+#authenticate dropbox
+token <- readRDS("drop_token.rds")
+drop_acc(token)
+
+#read/write functiosn for rds files to dropbox
+drop_readRDS <- function(file, dest = tempdir(), dtoken = get_dropbox_token(), ...) {
+  localfile = paste0(dest, "/", basename(file))
+  drop_get(file, local_file = localfile, overwrite = TRUE, dtoken = dtoken)
+  readRDS(localfile, ...)
+}
+
+drop_saveRDS <- function(data, dest = "data", dtoken = get_dropbox_token(), ...) {
+  localfile = paste0(tempdir(), "/", basename(dest))
+  saveRDS(data, localfile)
+  drop_upload(localfile, dirname(dest), dtoken = dtoken)
+}
+
 
 #server
 shinyServer(function(input, output, session) {
@@ -50,9 +71,12 @@ shinyServer(function(input, output, session) {
   games <- reactiveValues(completed = 0)
   
   #read rds
-  dt1in = readRDS("dt1.rds")
-  dt2in = readRDS("dt2.rds")
-  dt3in = readRDS("dt3.rds")
+  # dt1in = readRDS("dt1.rds")
+  # dt2in = readRDS("dt2.rds")
+  # dt3in = readRDS("dt3.rds")
+  dt1in = drop_readRDS("rpsdata/dt1.rds", dest = getwd(), dtoken = token)
+  dt2in = drop_readRDS("rpsdata/dt2.rds", dest = getwd(), dtoken = token)
+  dt3in = drop_readRDS("rpsdata/dt3.rds", dest = getwd(), dtoken = token)
   dt1a <- reactive(dt.cur$dt1 %>% mutate(N = N + dt1in$N))
   dt2a <- reactive(dt.cur$dt2 %>% mutate(N = N + dt2in$N))
   dt3a <- reactive(dt.cur$dt3 %>% mutate(N = N + dt3in$N))
@@ -122,11 +146,13 @@ shinyServer(function(input, output, session) {
     hide(selector = "#tab1 li a[data-value=Play]")
     show(selector = "#tab1 li a[data-value=Finish]")
     updateTabsetPanel(session, "tab1", selected = "Finish")
-    saveRDS(dt1a(), file = "dt1.rds")
-    saveRDS(dt2a(), file = "dt2.rds")
-    saveRDS(dt3a(), file = "dt3.rds")
-  }, priority = -1)
+  }, priority = 1)
   
+  observe(if(completed() == 1) {
+    drop_saveRDS(dt1a(), dest = "rpsdata/dt1.rds", dtoken = token)
+    drop_saveRDS(dt2a(), dest = "rpsdata/dt2.rds", dtoken = token)
+    drop_saveRDS(dt3a(), dest = "rpsdata/dt3.rds", dtoken = token)
+  }, priority = -1)
   
   #for UI
   #image functions
@@ -212,7 +238,7 @@ shinyServer(function(input, output, session) {
   observeEvent(input$refreshButton, js$reset())
   output$playerImageFinish <- renderImage(playerImgOut(),  deleteFile = FALSE)
   output$resultFinish <- renderText(if(!is.null(values$outcome)) paste("You", ifelse(values$outcome == "tie", "tied", values$outcome)))
-  output$ftFinish <- renderDataTable(performance(), options = list(paging = F, searching = FALSE, autoWidth = T, columnDefs = list(list(width = '60px', targets = "_all"))), rownames = F)
+  output$ftFinish <- renderDataTable(performance(), options = list(paging = F, searching = FALSE, autoWidth = T, columnDefs = list(list(width = '70px', targets = "_all"))), rownames = F)
   
   
   #tab "Data"

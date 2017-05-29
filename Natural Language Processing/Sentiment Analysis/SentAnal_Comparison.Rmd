@@ -1,0 +1,142 @@
+---
+title: "Introduction to Supervised vs. Unsupervised Sentiment Analysis"
+author: "Riki Saito"
+date: "February 12, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+
+## Sentiment Analysis
+
+## Unsupervised
+
+![](C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\Natural Language Processing\Sentiment Analysis\lexicon-based.png)
+
+Approximate String Matching is a pattern matching algorithm that computes the degree of similarity between two strings (rather than an exact match). In a nutshell, approximate string matching algorithms will find some sort of matches (single-character matches, pairs or tuples of matching consecutive characters, etc), and produce a quantitative measure (distance/dissimilarity) of how alike two strings are.
+
+
+<img src="C:\Users\rjsai\Downloads\approximate-pattern-matching-R.png" style="width: 300px;"/>
+
+(source: http://www3.cs.stonybrook.edu/~algorith/files/approximate-pattern-matching-R.gif)
+
+While there are numerous different of existing approximate string matching algorithms, there is a large school of methods that rely on what is known as edit distance. Edit distance is simply the number of "edits" (or operations) required to transform from one string to another. There are four different operations: insertion, deletion, substitution, and transposition (however not all algorithms considers this operation).
+
+![(source: http://www.ideserve.co.in/learn/img/editDistance_0.gif)](http://www.ideserve.co.in/learn/img/editDistance_0.gif)
+
+(source: http://www.ideserve.co.in/learn/img/editDistance_0.gif)
+
+For example, between the words **INTENTION** and **EXECUTION**, a total of 5 operations are required to transform from one word to the other. Therefore we have an edit distance of 5.
+
+Now let's see how approximate string matching algorithms are used in practice.
+
+## Evaluating Different Algorithms
+
+We will use product names listed on Amazon as an example. We have 8 different product and their names as listed on the website:
+
+
+| Amazon Product Listings                                  | Group (Product Line) |
+|----------------------------------------------------------| -------------------- |
+| Bose SoundLink Mini Bluetooth Speaker II (Pearl)                                | 1 |
+| Bose SoundLink Mini Bluetooth Speaker II (Carbon)                               | 1 |
+| Bose SoundLink Color Bluetooth speaker II - Soft black                          | 2 |
+| Bose SoundLink Color Bluetooth Speaker II - Polar White                         | 2 | 
+| UE BOOM 2 Phantom Wireless Mobile Bluetooth Speaker (Waterproof and Shockproof) | 3 |
+| UE BOOM 2 Yeti Wireless Mobile Bluetooth Speaker (Waterproof and Shockproof)    | 3 |
+| UE ROLL 2 Volcano Wireless Portable Bluetooth Speaker (Waterproof)              | 4 |
+| UE ROLL 2 Atmosphere Wireless Portable Bluetooth Speaker (Waterproof)           |	4 |
+
+In this post, we are going to extend the definition of record linkage: say we have a list of product names (Stock Keeping Units). The goal is to identify product listings that belong to the same Product Line (PL), or model (e.g. Bose Soundlink Mini II, Bose Soundlink Color II). So we should expect to see a smaller distance for product listings within in the same Group (Product Line), and a large measure of distance for listings belonging to different groups. 
+
+The algorithms we will consider are the following:
+
+| Algorithm                                               | Description                                                                                                      |
+|---------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| Longest Common String                                   | Length of longest substring present in both strings                                                              |
+| Optimal String Alignment (Damerau-Levenshtein Distance) | Number of edit operations needed to transform from one string into the other                                     |
+| Cosine Distance                                         | Similarity (from 0 to 1) between two strings, measured using the angle calculated between two vectorized strings |
+
+
+```{r, tidy = T}
+#load packages
+pacman::p_load(stringdist, dplyr, tm, gplots)
+
+#function to remove all white space
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+#function to clean strings (lower case, remove punctation, remove all white space)
+str_clean <- function(strings) {
+  require(dplyr); require(tm)
+  strings %>%
+    tolower() %>%
+    removePunctuation() %>%
+    stripWhitespace() %>%
+    trim()  
+}
+
+#product listings from amazon
+prods = c(
+  "Bose SoundLink Mini Bluetooth Speaker II (Pearl)", 
+  "Bose SoundLink Mini Bluetooth Speaker II (Carbon)", 
+  "Bose SoundLink Color Bluetooth speaker II - Soft black", 
+  "Bose SoundLink Color Bluetooth Speaker II - Polar White", 
+  "UE BOOM 2 Phantom Wireless Mobile Bluetooth Speaker (Waterproof and Shockproof)", 
+  "UE BOOM 2 Yeti Wireless Mobile Bluetooth Speaker (Waterproof and Shockproof)", 
+  "UE ROLL 2 Volcano Wireless Portable Bluetooth Speaker (Waterproof)", 
+  "UE ROLL 2 Atmosphere Wireless Portable Bluetooth Speaker (Waterproof)"
+)
+
+#cleaned product listings
+clean_prods = str_clean(prods)
+
+n = length(clean_prods)
+
+#distance methods
+methods <- c('lcs','osa','cosine')
+q <- c(0,0,3)  #size of q-gram
+
+dist.methods<-list()
+
+#create distance matrix for every pair of listing, for each method
+for(m in 1:length(methods)){
+  dist = matrix(NA, ncol = n, nrow = n)  #initialize empty matrix
+  #row.names(dist) = prods
+  for(i in 1:n) {
+    for(j in 1:n) { 
+      dist[i,j] <- stringdist(clean_prods[i],clean_prods[j], method = methods[m], q=q[m])   
+    }  
+  }
+  dist.methods[[m]] <- dist
+}
+```
+
+Let's visualize the results using heat maps. Note that in these figures, a darker red color corresponds to a closer distance between the pair of product listing names.
+
+```{r, tidy = T, fig.width=7, fig.height=5}
+#visualize results using heat
+heatmap.2(x = dist.methods[[1]], Rowv = FALSE, Colv = FALSE, dendrogram = "none",
+          cellnote = dist.methods[[1]], notecol = "black", notecex = 1, 
+          trace = "none", key = FALSE, margins = c(7, 11), main = "Longest Common String")
+
+
+heatmap.2(x = dist.methods[[2]], Rowv = FALSE, Colv = FALSE, dendrogram = "none",
+          cellnote = dist.methods[[2]], notecol = "black", notecex = 1, 
+          trace = "none", key = FALSE, margins = c(7, 11), main = "Optimal String Alignment")
+
+heatmap.2(x = dist.methods[[3]], Rowv = FALSE, Colv = FALSE, dendrogram = "none",
+          cellnote = round(dist.methods[[3]],2), notecol = "black", notecex = 1, 
+          trace = "none", key = FALSE, margins = c(7, 11), main = "Cosine Distance")
+```
+
+We can see all three methods produce similar results, and as we suspected, all product listings within the same group [(1,2, (3,4), (5,6), (7,8)] have a small relative measure of distance compared to listings outside of its group. With an appropriate threshold or cutoff, we are then able to categorize these listings into the appropriate groups:
+
+```{r}
+#hierarchical clustering with cut-off of 0.2
+clusters <- hclust(as.dist(dist.methods[[3]]))
+cbind("Product Listing" = prods, "Cluster" = cutree(clusters, h = .2))
+```

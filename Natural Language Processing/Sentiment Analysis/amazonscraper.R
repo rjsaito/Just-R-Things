@@ -1,5 +1,8 @@
-#Parse Amazon html pages for data
+#Parse Amazon html pages for reviews
 amazon_scraper <- function(doc, reviewer = T, delay = 0){
+  
+  
+  ## Sort page by?
   
   if(!"pacman" %in% installed.packages()[,"Package"]) install.packages("pacman")
   pacman::p_load_gh("trinker/sentimentr")
@@ -43,16 +46,16 @@ amazon_scraper <- function(doc, reviewer = T, delay = 0){
     str_extract("\\d") %>%
     as.numeric()
   
-  comments <- doc %>%
-    html_nodes("#cm_cr-review_list .review-text") %>%
-    html_text() 
-  
   helpful <- doc %>%
     html_nodes(".cr-vote-buttons .a-color-secondary") %>%
     html_text() %>%
     str_extract("[:digit:]+|One") %>%
     gsub("One", "1", .) %>%
     as.numeric()
+  
+  comments <- doc %>%
+    html_nodes("#cm_cr-review_list .review-text") %>%
+    html_text() 
   
   if(reviewer == T){
     
@@ -99,12 +102,20 @@ amazon_scraper <- function(doc, reviewer = T, delay = 0){
           trim()
       ) %>% as.numeric()
     
-    df <- data.frame(title, date, ver.purchase, format, stars, comments, helpful,
+    df <- data.frame(title, date, ver.purchase, format, stars, helpful, comments, 
                      rver_url, rver_avgrating_10, rver_numrev, rver_numhelpful, rver_rank, stringsAsFactors = F)
   
-  } else df <- data.frame(title, author, date, ver.purchase, format, stars, comments, helpful, stringsAsFactors = F)
+  } else df <- data.frame(title, author, date, ver.purchase, format, stars, helpful, comments, stringsAsFactors = F)
   
   return(df)
+}
+
+
+amazon_imgscraper <- function(doc, path = file.choose(new = T), ht = 50, delay = 0){
+  require(EBImage)
+  landing_image_link <- html_nodes(doc, "#landingImage") %>% html_attr("data-old-hires")
+  image <- readImage(landing_image_link) %>% resize(h = ht)
+  writeImage(image, path)
 }
 
 
