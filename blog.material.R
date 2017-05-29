@@ -1,6 +1,3 @@
-#Materials for Blog Post
-
-
 ### Installing/Loading Packages at Once
 
 #ipak - https://gist.github.com/stevenworthington/3178163
@@ -14,9 +11,4 @@ ipak <- function(pkg){
 #can save as as source function or in R profile (automatically load on start up)
 pacman::p_load(dplyr, tidyr, magrittr, data.table)
 #####################################################################################
-
-
-#dplyr
-#progress bars
-#pipes
 
