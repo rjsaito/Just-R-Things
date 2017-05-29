@@ -1,5 +1,3 @@
-source("C:/Users/rsaito/Dropbox/Data Science/Just-R-Things/Natural Language Processing/Sentiment Analysis/amazonscraper.R")
-
 
 prod_code = "B01EHIQAUE"
 pages <- 22
