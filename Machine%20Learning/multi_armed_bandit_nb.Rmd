@@ -1,14 +1,9 @@
 ---
-title: "Multi Armed Bandit - Is it better than A/B testing?"
+title: "Multi Armed Bandit - Is it better than A/B Testing?"
 author: "Riki Saito"
-date: "May 28, 2017"
-output: html_document
+date: "May 18, 2017"
+output: html_notebook
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 
 ## Introduction
 
@@ -45,16 +40,16 @@ A Multi Armed Bandit experiment is designed with a mix of the two phases. During
 </center>
 
  
-## Experiment
+## Methods
 
-Here we introduce some of the popular Multi Armed Bandit algorithms.
+Here we will show how samples are allocated to different versions in an A/B test design as well as in some of the currently popular Multi Armed Bandit algorithms.
 
 ### A/B Test
 
+In an A/B test, samples are allocated to the different versions with equal sample sizes. To 
+
 ```{r}
 pacman::p_load(dplyr, ggplot2, data.table)
-
-source("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/Machine%20Learning/Multi%20Armed%20Bandit/multi_armed_bandit_sim.R")
 
 experiment_plot = function(x, y){
     
@@ -141,7 +136,7 @@ Let us say that at each round we sample a total of 200 observations, split betwe
 
 
 <center>
-<img src="https://github.com/rjsaito/Just-R-Things/blob/master/Machine%20Learning/Multi%20Armed%20Bandit/ab_mab_simulation_result_n_500.tiff" style="width: 700px;"/>
+<img src="C:\Users\rjsai\Dropbox\Data Science\Just-R-Things\Machine Learning\Multi Armed Bandit\ab_mab_simulation_result_n_300.tiff" style="width: 700px;"/>
 <p class="caption" style="font-style: italic; color: gray" >  Figure: Multi Armed Bandit </p>
 </center>
 

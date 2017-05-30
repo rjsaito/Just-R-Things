@@ -178,7 +178,7 @@ reps = 1000
 
 Rounds = 20
 P.crit = c(0, .01, 0.05)
-N = c(50, 100, 300, 500)
+N = c(50, 500)
 P = list(c(.3, .7), c(.4, .6), c(.45, .55))
 funs = c("ABtest", "mab_eg", "mab_ed", "mab_ucb")
 testNames = c("A/B Test", "Epsilon-Greedy  Multi Armed Bandit", "Epsilon-Decreasing Multi Armed Bandit", "UCB1 Multi Armed Bandit")
@@ -270,7 +270,7 @@ pl + facet_wrap(~ params, scales = "free_y")
 # to a pdf
 pdf("ab_mab_simulation_result.pdf", height = 8, width = 15)
 for(n_size in N){
-  pl <- ggplot(data = filter(all_results_mod, n == n_size), aes(x = round, y = Reward, colour = Design)) + geom_point() + geom_line() + scale_x_continuous(breaks = seq(0,20, by = 2)) + ylab("Avg. Sale Price") + xlab("# Rounds") + ggtitle(paste0("Simulation: Auction Experiment (n = ", n_size, ")"))
+  pl <- ggplot(data = filter(all_results_mod, n == n_size), aes(x = round, y = Reward, colour = Design)) + geom_point() + geom_line() + scale_x_continuous(breaks = seq(0,20, by = 2)) + ylab("Avg. Proportion of Successes") + xlab("# Rounds") + ggtitle(paste0("Simulation (n = ", n_size, ")"))
   print(pl + facet_wrap(~ params, scales = "free_y") +  geom_vline(data = filter(all_sig_at_mod, n == n_size), aes(xintercept = SigAt, colour = Design), show.legend = T))
 }
 dev.off()
@@ -279,10 +279,16 @@ dev.off()
 # to a tiff
 for(n_size in N){
   tiff(paste0("ab_mab_simulation_result_n_", n_size, ".tiff"), units="in", width=15, height=8, res=300, compression = 'lzw')
-  pl <- ggplot(data = filter(all_results_mod, n == n_size), aes(x = round, y = Reward, colour = Design)) + geom_point() + geom_line() + scale_x_continuous(breaks = seq(0,20, by = 2)) + ylab("Avg. Sale Price") + xlab("# Rounds") + ggtitle(paste0("Simulation: Auction Experiment (n = ", n_size, ")"))
+  pl <- ggplot(data = filter(all_results_mod, n == n_size), aes(x = round, y = Reward, colour = Design)) + geom_point() + geom_line() + scale_x_continuous(breaks = seq(0,20, by = 2)) + ylab("Avg. Proportion of Successes") + xlab("# Rounds") + ggtitle(paste0("Simulation (n = ", n_size, ")"))
   print(pl + facet_wrap(~ params, scales = "free_y") +  geom_vline(data = filter(all_sig_at_mod, n == n_size), aes(xintercept = SigAt, colour = Design), show.legend = T))
   dev.off()
 }
+
+
+
+pl <- ggplot(data = filter(all_results_mod, n == n_size & params == "p.crit = 0, n = 500, p = 0.45/0.55"), aes(x = round, y = Reward, colour = Design)) + geom_point() + geom_line() + scale_x_continuous(breaks = seq(0,20, by = 2)) + ylab("Avg. Proportion of Successes") + xlab("# Rounds") + ggtitle(paste0("Simulation (n = ", n_size, ")"))
+pl + geom_vline(data = filter(all_sig_at_mod, n == n_size & params == "p.crit = 0, n = 50, p = 0.45/0.55"), aes(xintercept = SigAt, colour = Design), show.legend = T)
+
 
 
 
