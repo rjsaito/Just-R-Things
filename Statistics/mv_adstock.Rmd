@@ -1,0 +1,211 @@
+---
+title: "A Multivariate Approach to Adstock Rate Modeling in R"
+author: "Riki Saito"
+date: "December 29, 2017"
+output: html_document
+---
+
+```{r, echo = F}
+pacman::p_load(mathpix)
+```
+
+## Introduction
+
+Advertising adstock is the carry-over effect of some advertisement to a consumer over time. Finding the decay rate or half-life of advertising is a common question of interest to many advertisers to determine how effective advertising builds the awareness of their brand.
+
+Adstock is traditionally applied to advertisement via TV, and models are used to determine the best-fitting adstock rate of TV to Sales, or some sort of outcome (i.e. awareness). However in most cases, one would have other mediums such as Radio, Print, Digital, Social, etc.
+
+I took the Nonlinear Least Squares approach to solving for the optimal adstock rate commonly applied to a single advertising medium, and augmented it to take in multiple variables.
+
+My motivation for developing this multivariate approach is that modeling adstock rates for each advertisement medium independently may not be sufficient given that multiple mediums affect the outcome, and need to be accounted for collectively.
+
+## Method
+
+Let $i = 1,..., T$,  $\lambda$ = adstock rate, and $\epsilon_{i}$ = error at time $i$. Then we can model Sales (or some outcome of advertising) as:
+
+$$
+Sales_{i} = Base + \beta * Adstock(Ad_{i}, \lambda) + \epsilon_{i}
+$$
+
+where
+
+$$
+Adstock(Ad_i, \lambda) = Ad_{i} + \lambda*Adstock(Ad_{t = i-1}, \lambda)
+$$
+
+Now let's say there are three advertising mediums that we want to compute adstock rates for. In this multivariate scenario, this model would look like this:
+
+$$
+Sales_{i} = Base + \beta_1 * Adstock(Ad_{(1, i)}, \lambda_1) +  \beta_2 * Adstock(Ad_{(2,i)}, \lambda_2)  + \beta_3 * Adstock(Ad_{(3,i)}, \lambda_3) + \epsilon_{i}
+$$
+
+The goal is to find the optimal rates of all $\lambda$ values, using Nonlinear Least Squares. The intercept that is computed from the model can also be interpreted as the **Base**, or the base level of sales or outcome if there were no advertising at all.
+
+
+## Example in R
+
+For this example I generated a sample data with 3 ad variables (each representing some advertisement medium) with 104 obervations (representing roughly 2 years of weekly data). Then `sales` is generated from base + ad variables w/ ad stocking, with added random noise.
+
+FYI: If you aren't using `pacman` already, it is a great package management tool and I would highly recommend it [(link to Github)](https://github.com/trinker/pacman).
+
+```{r}
+# generate sample data
+pacman::p_load(minpack.lm)
+set.seed(2222)
+
+# adstock function
+adstock<-function(x,rate=0){
+  return(as.numeric(stats::filter(x=x,filter=rate,method="recursive")))
+}
+
+# generate base (intercept) + noise, and random values for ad1, ad2, and ad3
+n_weeks = 104
+base = 50
+ad1 = sapply(rnorm(n_weeks, mean = 20, sd = 10), function(x) round(max(x, 0), 0))
+ad2 = sapply(rnorm(n_weeks, mean = 20, sd = 10), function(x) round(max(x, 0), 0))
+ad3 = sapply(rnorm(n_weeks, mean = 20, sd = 10), function(x) round(max(x, 0), 0))
+
+# adstock rates
+ad1_rate = .7
+ad2_rate = .4
+ad3_rate = .5
+
+# generate sales data from the base + ad vairables w/ ad stocking, with random noise
+sales = round(base + adstock(ad1, ad1_rate) + adstock(ad2, ad2_rate) + adstock(ad3, ad3_rate) + rnorm(n_weeks, sd = 5), 0)
+```
+
+I wrote a **Multivariate Adstock Function** in R, with special thanks to **Angela Ju**, whose code from [this article](https://www.linkedin.com/pulse/function-i-wrote-r-derive-optimal-adstock-rate-from-data-angela-ju/) I adopted and augmented. The equation from is implemented in the R function using the `nls` function to fit a nonlinear least squares with the adstock function.
+
+This function can take a `data.frame` of any number of column(s) (or advertisement mediums), and will calculate the optimal adstock rate for each column in the input data.
+
+```{r}
+#multivariate adstock function
+AdstockRateMV <- function(Impact, Ads, maxiter = 100){
+  # parameter names
+  params = letters[2:(ncol(Ads)+1)]
+  # ad variable names
+  ads = paste0("ad_", params)
+  # rate variable names
+  rates = paste0("rate_", params)
+  # create partial formula
+  param_fm = paste(
+    paste(params, "*adstock(", ads,  ",", rates, ")", sep = ""),
+    collapse = " + "
+  )
+  # create whole formula
+  fm = as.formula(paste("Impact ~ a +", param_fm))
+  # starting values for nls
+  start = c(rep(1, length(params) + 1), rep(.1, length(rates)))
+  names(start) = c("a", params, rates)
+  # input data
+  Ads_df = Ads
+  names(Ads_df) = ads
+  Data = cbind(Impact, Ads_df)
+  # fit model
+  modFit <- nls(data = Data, fm, start = start, control = nls.control(maxiter = maxiter, warnOnly = T))
+  # if all decay rates greater than 0, done. If not, use a constrained nls model (with lower and upper parameter limits)
+  if(!all(summary(modFit)$coefficients[rates, 1] > 0)){
+    library(minpack.lm)
+    lower = c(rep(-Inf, length(params) + 1), rep(0, length(rates)))
+    upper = c(rep(Inf, length(params) + 1), rep(1, length(rates)))
+    modFit <- nlsLM(fm, data = Data, start = start,
+                   lower = lower, upper = upper,
+                   control = nls.lm.control(maxiter = maxiter)) 
+  }
+  # model coefficients
+  AdstockInt = round(summary(modFit)$coefficients[1, 1])
+  AdstockCoef = round(summary(modFit)$coefficients[params, 1], 2)
+  AdstockRate = round(summary(modFit)$coefficients[rates, 1], 2)
+  # print formula with coefficients
+  param_fm_coefs = paste(
+    paste(round(AdstockCoef, 2), " * adstock(", names(Ads),  ", ", round(AdstockRate, 2), ")", sep = ""),
+    collapse = " + "
+  )
+  fm_coefs = as.formula(paste("Impact ~ ", AdstockInt, " +", param_fm_coefs))
+  # rename rates with original variable names
+  names(AdstockRate) = paste0("rate_", names(Ads))
+  # calculate percent error
+  mape = mean(abs((Impact-predict(modFit))/Impact) * 100)
+  # return outputs
+  return(list(fm = fm_coefs, base = AdstockInt, rates = AdstockRate, mape = mape))
+}
+
+```
+
+The function takes in an `Impact` (a vector or single-column data frame of some advertising outcome), `Ads` (data frame of advertisement variables), and `maxiter` (maximum # of iterations for convergence), and returns the adstock model formula, base value, adstock rate for each ads considered, and the Mean average percent error (MAPE) between the predicted outcome and actual outcome.
+
+First as a baseline, let's fit a univariate model for adstock rates for each advertisement mediums.
+
+```{r}
+# adstock for ad1
+Impact = sales
+(mod = AdstockRateMV(Impact, data.frame(ad1)))
+```
+
+For Ad 1, the model estimates base as `r mod$base` and adstock rate as `r mod$rates`.
+
+```{r}
+# adstock for ad2
+(mod = AdstockRateMV(Impact, data.frame(ad2)))
+```
+
+For Ad 2, the model estimates base as `r mod$base` and adstock rate as `r mod$rates`.
+
+```{r}
+# adstock for ad3
+(mod = AdstockRateMV(Impact, data.frame(ad3)))
+```
+
+For Ad 3, the model estimates base as `r mod$base` and adstock rate as `r mod$rates`.
+
+However, the original parameters used to simulate the data are base of `r base` with rates of `r c(ad1_rate, ad2_rate, ad3_rate)`. To my previous point, modeling adstock for each medium independently may not be sufficient due to omitted-variable bias, and thus should be considered together.
+
+
+Let us now compute the adstock rates for all three advertisement variables together in a multivariate model.
+
+```{r}
+# multivariate adstock model
+Ads = data.frame(ad1, ad2, ad3 )
+(mod = AdstockRateMV(Impact, Ads))
+```
+
+The model estimates base as `r mod$base` and adstock rates as `r mod$rates`. With a MAPE of `r round(mod$mape, 2)`%, and in comparison to base of `r base` and rates of `r c(ad1_rate, ad2_rate, ad3_rate)`, this is a fairly accurate estimate.
+
+## Simulation
+
+Now let's do a simulation with n = 100 random samples taken from normal distributions.
+
+```{r}
+# simulation
+adstock_sim = function(){
+  # generate base (intercept) + noise, and random values for ad1, ad2, and ad3
+  base = 50
+  ad1 = sapply(rnorm(n_weeks, mean = 20, sd = 10), function(x) round(max(x, 0), 0))
+  ad2 = sapply(rnorm(n_weeks, mean = 20, sd = 10), function(x) round(max(x, 0), 0))
+  ad3 = sapply(rnorm(n_weeks, mean = 20, sd = 10), function(x) round(max(x, 0), 0))
+  # adstock rates
+  ad1_rate = .7
+  ad2_rate = .4
+  ad3_rate = .5
+  # generate sales data from the base + ad vairables w/ ad stocking, with random noise
+  sales = round(base + adstock(ad1, ad1_rate) + adstock(ad2, ad2_rate) + adstock(ad3, ad3_rate) + rnorm(n_weeks, sd = 5), 0)
+  # fit model
+  Impact = sales
+  Ads = data.frame(ad1, ad2, ad3 )
+  mod = AdstockRateMV(Impact, Ads)
+  return(c(base = mod[[2]], mod[[3]], mape = mod[[4]]))
+}
+
+# replicate 100 times
+mod_rep = replicate(n = 100, adstock_sim())
+rowMeans(mod_rep)
+```
+
+With a simulation of 100 samples, the model estimates the average base as `r base` and average rates as `r c(ad1_rate, ad2_rate, ad3_rate)`, with a mean MAPE of `r round(mean(mod_rep[5,]), 2)`%.
+
+The caveat here is that simulations can be built to produce any results as expected (and is certainly the case here), but in practice, I believe this multivariate approach to adstock modeling provides a better representation of adstock rates of different advertisment mediums, compared to a univariate approach. 
+
+If you liked this post, please check out my other posts at https://justrthings.wordpress.com/. 
+
+
+
