@@ -35,7 +35,7 @@ tagPOS <-  function(x, ...) {
 
 
 ###########################################################################################################
-reviews = read.csv("Z:/AMR_Intern Riki/amazon reviews/amazon_reviews_jaybird_x2.csv", stringsAsFactors = F)
+reviews = read.csv("...csv", stringsAsFactors = F)
 
 prod = unique(reviews$prod)
 reviews_lines = get_sentences2(reviews$comments) %>% unlist()
