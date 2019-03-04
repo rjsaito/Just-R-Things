@@ -1,0 +1,153 @@
+---
+title: "Web Scraping Amazon Reviews (March 2019)"
+author: "Riki Saito"
+date: "March 3, 2019"
+output: html_document
+---
+
+Note: This is a re-release on how to scrape product reviews from Amazon, written in March 2019 (my original [post](https://justrthings.com/2016/08/17/web-scraping-and-sentiment-analysis-of-amazon-reviews/) is now almost 3 years old) . Amazon's webpage designs change slightly from time to time, and as a result, scraper functions written months of years ago may not function properly.  
+
+## Introduction
+
+Web Scraping is one of the most common (and sometimes tedious) data collection tasks nowadays in Data Science. It is an essential step in gather data - especially text data - in order to perform various Natural Language Processing tasks, such as Sentiment Analysis, Topic Modeling, and Word Embedding. In this post, we explore how to use R to automate scraping procedures to easily obtain data off of web pages.
+
+Web scraping is done by selecting certain elements or paths of any given webpage and extracting parts of interest (also known as parsing), we are able to obtain data. A simple example of webscraping in R can be found in this awesome [blog post](https://blog.rstudio.org/2014/11/24/rvest-easy-web-scraping-with-r/) on R-bloggers.
+
+In this post will be scraping reviews from Amazon, specifically reviews for the DVD / Blu-ray of 2018 film, **Venom**. In order to scrape data for a specific product, we first need to ASIN code. The ASIN code for a product is typically found within the URL of the product page (i.e. https://www.amazon.com/Venom-Blu-ray-Tom-Hardy/dp/B07HSKPDBV). Using the product code **B07HSKPDBV**, Let's scrape the product name of this on Amazon. The URL of Amazon's product pages are easy to build; simply concatenate the ASIN code to the "base" URL as such: https://www.amazon.com/dp/B07HSKPDBV. 
+
+
+
+
+We build the URL, and point to a specific **node** `#productTitle` of the HTML web page using the CSS selector (read about CSS Selector and how to obtain it using the SelectorGadget [here](http://selectorgadget.com/)). Finally, we clean and parse the text to obtain just the product name:
+
+```{r}
+# Install / Load relevant packages
+if(!"pacman" %in% installed.packages()[,"Package"]) install.packages("pacman")
+pacman::p_load(rvest, dplyr, tidyr, stringr)
+
+# Venom product code
+prod_code <- "B07HSKPDBV"
+
+url <- paste0("https://www.amazon.com/dp/", prod_code)
+doc <- read_html(url)
+
+#obtain the text in the node, remove "\n" from the text, and remove white space
+prod <- html_nodes(doc, "#productTitle") %>% 
+  html_text() %>% 
+  gsub("\n", "", .) %>% 
+  trimws()
+
+prod
+```
+
+
+With this simple code, we were able to obtain the product name of this ASIN code.
+
+Now, we want to grab all the reviews of this product, and combine them all into a nice single `data.frame`. Below is an R function to scrape various elements from a web page: 
+
+
+```{r}
+# Function to scrape elements from Amazon reviews
+scrape_amazon <- function(url, throttle = 0){
+  
+  # Install / Load relevant packages
+  if(!"pacman" %in% installed.packages()[,"Package"]) install.packages("pacman")
+  pacman::p_load(RCurl, XML, dplyr, stringr, rvest, purrr)
+  
+  # Set throttle between URL calls
+  sec = 0
+  if(throttle < 0) warning("throttle was less than 0: set to 0")
+  if(throttle > 0) sec = max(0, throttle + runif(1, -1, 1))
+  
+  # obtain HTML of URL
+  doc <- read_html(url)
+  
+  # Parse relevant elements from HTML
+  title <- doc %>%
+    html_nodes("#cm_cr-review_list .a-color-base") %>%
+    html_text()
+  
+  author <- doc %>%
+    html_nodes("#cm_cr-review_list .a-profile-name") %>%
+    html_text()
+  
+  date <- doc %>%
+    html_nodes("#cm_cr-review_list .review-date") %>%
+    html_text() %>% 
+    gsub(".*on ", "", .)
+  
+  review_format <- doc %>% 
+    html_nodes(".review-format-strip") %>% 
+    html_text() 
+  
+  stars <- doc %>%
+    html_nodes("#cm_cr-review_list  .review-rating") %>%
+    html_text() %>%
+    str_extract("\\d") %>%
+    as.numeric() 
+  
+  comments <- doc %>%
+    html_nodes("#cm_cr-review_list .review-text") %>%
+    html_text() 
+  
+  suppressWarnings(n_helpful <- doc %>%
+    html_nodes(".a-expander-inline-container") %>%
+    html_text() %>%
+    gsub("\n\n \\s*|found this helpful.*", "", .) %>%
+    gsub("One", "1", .) %>%
+    map_chr(~ str_split(string = .x, pattern = " ")[[1]][1]) %>%
+    as.numeric())
+  
+  # Combine attributes into a single data frame
+  df <- data.frame(title, author, date, review_format, stars, comments, n_helpful, stringsAsFactors = F)
+  
+  return(df)
+}
+```
+
+Let's use this function on the first page of reviews. 
+
+```{r}
+# load DT packege
+pacman::p_load(DT)
+
+# run scraper function
+url <- "http://www.amazon.com/product-reviews/B07HSKPDBV/?pageNumber=1"
+reviews <- scrape_amazon(url)
+
+# display data
+str(reviews)
+```
+
+As you can see, this function obtains the Title, Author, Date, Review Format, Stars, Comments, and N customers who found the review helpful. (Note that by modifying the function above, you can also include additional metrics as you desire).
+
+Let's now loop this function over 100 pages of reviews to bulk scrape more reviews. Each page contains 8 - 10 reviews (varies by product), in this case, 8 reviews per page. Thus by looping over 100 pages, we can obtain 800 reviews. We also set a `throttle` of 3 seconds, which will force the function to halt for 3 seconds (+ ~Uniform(-1, 1) seconds), so as not to trigger Amazon's bot detectors.
+
+```{r, eval = F}
+# Set # of pages to scrape. Note: each page contains 8 reviews.
+pages <- 100
+
+# create empty object to write data into
+reviews_all <- NULL
+
+# loop over pages
+for(page_num in 1:pages){
+  url <- paste0("http://www.amazon.com/product-reviews/",prod_code,"/?pageNumber=", page_num)
+  reviews <- scrape_amazon(url, throttle = 3)
+  reviews_all <- rbind(reviews_all, cbind(prod, reviews))
+}
+```
+
+
+```{r, echo = F}
+reviews_all = read.csv("sample_reviews_venom.csv", stringsAsFactors = F)[,-1]
+```
+
+```{r}
+str(reviews_all)
+```
+
+
+You can see that we were able to obtain 800 reviews for Venom. Happy Analyzing!
+
+To see what you can do with text data, you can see my other posts on Natural Language Processing.

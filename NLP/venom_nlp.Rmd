@@ -1,0 +1,422 @@
+---
+title: "Sentiment Analysis, Word Embedding, and Topic Modeling of Venom Reviews"
+author: "Riki Saito"
+date: "March 3, 2019"
+output: html_document
+---
+
+## Introduction
+
+With the drastic increase in the availability of text data on the web over the past decade, the field of Natural Language Processing has also had some great strides of advancement at an unprecedented rate. Like many topics in Machine Learning and AI, the rate of advancement in NLP is so fast that even methodologies that were state-of-the-art just a few of years ago is now considered obsolete. At the same time, because of the gain in popularity of NLP - among both corporations and professionals - many open source tools have become available.
+
+In this post, we will explore three of the most popular topics in Natural Language Processing: **Sentiment Analysis**, **Word Embedding** (also called Word2Vec), and **Topic Modeling**, using various open source tools in R.
+
+## Sentiment Analysis
+
+Like many Machine Learning tasks, there are two major families of Sentiment Analysis: Supervised, and Unsupervised Learning. 
+
+In **Supervised** Sentiment Analysis, labeled sentences are used as training data to develop a model (e.g. "You like that movie" - Positive, "That movie was terrible" - Negative). Using labeled sentences, you train a machine learning model (methods range from as simple as Naive Bayes on  unigrams, to Deep Recurrent Neural Networks with Word Embedding Layers and LSTM).
+
+In **Unsupervised** Sentiment Analysis, labeled sentences are not required. Instead, they rely on lexicon of words with associated sentiment values. A simple lexicon would contain a dictionary of words with a classification of "positive" or "negative" (i.e. good = positive, bad = negative). Lexcions that are a little more sophisticated would have varying values assigned to different words (i.e. good = 0.5, great = 0.75).
+
+While the **Supervised** method is generally known to have better performance, in this post we will explore the **Unsupervised** method  (primarily due to not having the luxury of having pre-labeled sentences).
+
+In this post, we will be working with reviews of the 2018 film **Venom**, scraped from Amazon.com. To find out how to scrape reviews from amazon, see this [post](https://justrthings.com/2019/03/03/web-scraping-amazon-reviews-march-2019/).
+
+First we'll load the data.
+
+```{r}
+# load packages for data cleaning and sentiment analysis
+if(!"pacman" %in% installed.packages()[,"Package"]) install.packages("pacman")
+pacman::p_load(dplyr)
+
+# grab reviews
+reviews_all = read.csv("https://raw.githubusercontent.com/rjsaito/Just-R-Things/master/NLP/sample_reviews_venom.csv", stringsAsFactors = F)
+
+# create ID for reviews
+review_df <- reviews_all %>%
+  mutate(id = row_number())
+
+str(reviews_all)
+```
+
+This is a `data.frame` of 1,564 reviews of Venom on Amazon. It contains the product name (Venom), title of review, author, date, review format, star rating, comments, and # of customers who found the review helpful.
+
+we will be performing a Lexicon-based Unsupervised Sentiment Analysis, using a package called `sentimentr`, written by Tyler Rinker. This lexicon based approach is in fact more sophisticated than it actually sounds, and takes into consideration concepts such as "amplifiers" and "valence shifters" when calculating the sentiment. The **READ.me** section of this [gitub repo](https://github.com/trinker/sentimentr) is worth a read if you are interested in learning what really happens under the hood. 
+
+We will load the package, and view the `head` of the default lexicon data frame to get a glimpse of what we will be working with. 
+
+```{r}
+# load packages for senitment analysis
+pacman::p_load(tidyr, stringr, data.table, sentimentr, ggplot2)
+
+nrow(lexicon::hash_sentiment_jockers_rinker)
+
+# example lexicon
+head(lexicon::hash_sentiment_jockers_rinker)
+```
+
+You can see that this default lexicon contains 11,710 words, each with a pre-assigned sentiment value. This is a rich lexicon to work with, but we will be making some modifications to this before we perform sentiment analysis on Venom. The reason we want to do this is, in the context of Venom, some words deserve a sentiment value from the one pre-assigned in the lexicon. An example is the word "Venom" itself - we know that in this film "Venom" refers to the main symbiote character, and thus should hold a neutral sentiment (i.e. sentiment = 0) as the sentiment will be determine by the words accompanying "Venom" rather than Venom itself. In the lexicon, the word "Venom" is assigned a value of -0.75, thus we will modify it to 0. While this step may be tedious, it is necessary in order to perform a more accurate, **Domain Specific** Sentiment Analysis. 
+
+Here are some other examples of words to modify in the lexicon.
+
+```{r}
+# words to replace
+replace_in_lexicon <- tribble(
+  ~x, ~y,
+  "marvel", 0,  # original score: .75
+  "venom", 0,   # original score: -.75
+  "alien", 0,   # original score: -.6
+  "bad@$$", .4, # not in dictionary
+  "carnage", 0, # original score: 0.75
+  "avenger", 0, # original score: .25
+  "riot", 0     # original score: -.5
+)
+
+# create a new lexicon with modified sentiment
+venom_lexicon <- lexicon::hash_sentiment_jockers_rinker %>%
+  filter(!x %in% replace_in_lexicon$x) %>%
+  bind_rows(replace_in_lexicon) %>%
+  setDT() %>%
+  setkey("x")
+```
+
+Now that we have tailored the lexicon for Venom, we area ready to perform sentiment analysis. Using a combination of `get_sentences()` and `sentiment_by()`, we perform a sentence-level sentiment analysis:
+
+```{r}
+# get sentence-level sentiment
+sent_df <- review_df %>%
+  get_sentences() %>%
+  sentiment_by(by = c('id', 'author', 'date', 'stars', 'review_format'), polarity_dt = venom_lexicon)
+```
+
+After doing so, first let's plot the sentiment by star rating, using a box plot. We would expect that the higher the star rating that a review has received, the higher the sentiment of the review.
+
+```{r}
+# stars vs sentiment
+p <- ggplot(sent_df, aes(x = stars, y = ave_sentiment, color = factor(stars), group = stars)) +
+  geom_boxplot() +
+  geom_hline(yintercept=0, linetype="dashed", color = "red") +
+  geom_text(aes(5.2, -0.05, label = "Neutral Sentiment", vjust = 0), size = 3, color = "red") +
+  guides(color = guide_legend(title="Star Rating")) +
+  ylab("Avg. Sentiment") +
+  xlab("Review Star Rating") +
+  ggtitle("Sentiment of Venom Amazon Reviews, by Star Rating") 
+p
+```
+
+You can see that is the case, with some variability. Furthermore, reviews with a star rating of 1 tend to be mostly consistently negative, while reviews with a star rating of 5 tends to be a mixed back of sentiment, while averaging high.
+
+Let's now plot the average sentiment over time.
+
+```{r}
+# sentiment over time
+sent_ts <- sent_df %>%
+  mutate(
+    date = as.Date(date, format = "%d-%B-%y"),
+    dir = sign(ave_sentiment)
+  ) %>%
+  group_by(date) %>%
+  summarise(
+    avg_sent = mean(ave_sentiment)
+  ) %>%
+  ungroup()
+
+# plot
+p <- ggplot(sent_ts, aes(x = date, y = avg_sent)) +
+  geom_smooth(method="loess", size=1, se=T, span = .6) +
+  geom_vline(xintercept=as.Date("2018-10-05"), linetype="dashed", color = "black") +
+  geom_text(aes(as.Date("2018-10-05") + 1, .4, label = "Theatrical Release", hjust = "left"), size = 3, color = "black") +
+  geom_vline(xintercept=as.Date("2018-12-11"), linetype="dashed", color = "black") +
+  geom_text(aes(as.Date("2018-12-11") + 1, .4, label = "Digital Release", hjust = "left"), size = 3, color = "black") +
+  geom_vline(xintercept=as.Date("2018-12-18"), linetype="dashed", color = "black") +
+  geom_text(aes(as.Date("2018-12-18") + 1, .37, label = "DVD / Blu-Ray Release", hjust = "left"), size = 3, color = "black") +
+  geom_hline(yintercept=0, linetype="dashed", color = "red") +
+  geom_text(aes(max(sent_ts$date) - 5, -0.02, label = "Neutral Sentiment", vjust = 0), size = 3, color = "red") +
+  ylab("Avg. Sentiment") +
+  xlab("Review Date") +
+  ggtitle("Sentiment of Venom Amazon Reviews, Over Time (2018 - 2019)")
+p
+```
+
+The sentiment for the film remained waekly positive over the course of the 5-month period, reaching an all time low towards the later half of October (few weeks into release), andw a peak around the later half of November (Thanksgiving week).
+
+
+## Word Embeddings
+
+Next, we will perform what is called **Word Embedding** (also known as **word2vec**. Word Embedding is a technique used to take a corpora (structured set of text, such as reviews), and transform it in such a way that it captures the **context** of a word in a document/sentence/review, its **semantic and syntactic similarity**, and its **relation** with other words. This is done by calculating a contexutal representation of a word in a vector form, and similar words will have vectors that are similar or close to each other, while words that are vasly different will be much further away.
+
+There are many Word Embeddings methodology today, but the two most popular methods are:
+
+1) Unsupervised learning on n-gram / dimensionality reduction on co-occurrence matrix, and
+2) Skip gram model using Deep Neural Network
+
+The latter requires time and resources (often requires GPU to train model in a reasonable amount of time), so in this post we will be exploring the former method. In specific, we will be using a method called **GloVe** (Global Vectors for Word Representation).
+
+The package we will be using is called `text2vec`.
+
+```{r}
+pacman::p_load(text2vec, tm, ggrepel)
+```
+
+The following code preprocesses the data, trains the model, and obtains the word vectors. To fully understand the algorithm for GloVe, this [paper](ttps://nlp.stanford.edu/pubs/glove.pdf) is a great reference - however using the default parameter settings is acceptable for most scenarios to start training your GloVe models.
+
+Here are some consideration for the parameters, if you would like to tweak them:
+- `term_count_min`: Minimum acceptable counts of a word in entire corpora to include in the model.
+- `skip_gram_window`: The window size to search for a word-word co-occurence.
+- `word_vector_size`: The length of the word embedding vector to train.
+- `x_max`: A parameter in the cost function to adjust for co-word occurence (5 - 10 seems to be appropriate for small corpora)
+- `n_iter`: # of training iterations to run (10 - 20 for small corpora).
+
+```{r, results='hide'}
+# create lists of reviews split into individual words (iterator over tokens)
+tokens <- space_tokenizer(reviews_all$comments %>%
+                            tolower() %>%
+                            removePunctuation())
+
+# Create vocabulary. Terms will be unigrams (simple words).
+it <- itoken(tokens, progressbar = FALSE)
+vocab <- create_vocabulary(it)
+
+# prune words that appear less than 3 times
+vocab <- prune_vocabulary(vocab, term_count_min = 3L)
+
+# Use our filtered vocabulary
+vectorizer <- vocab_vectorizer(vocab)
+
+# use skip gram window of 5 for context words
+tcm <- create_tcm(it, vectorizer, skip_grams_window = 5L)
+
+# fit the model. (It can take several minutes to fit!)
+glove = GloVe$new(word_vectors_size = 100, vocabulary = vocab, x_max = 5)
+glove$fit_transform(tcm, n_iter = 20)
+
+# obtain word vector
+word_vectors = glove$components
+```
+
+Now, using `Brock`'s word vector, let's see which words have the most contextual similarity (cosine similarity between word vectors):
+
+```{r}
+# get vector for brock
+brock <- word_vectors[, "brock", drop = F] 
+
+# get cosine similarity to other vectors
+cos_sim = sim2(x = t(word_vectors), y = t(brock), method = "cosine", norm = "l2")
+head(sort(cos_sim[,1], decreasing = TRUE), 10)
+```
+
+Contextually, (pro)nouns that are most similar to Brock is Eddie, Symbiote, Williams, Venom, Hardy (notice how Williams comes before Venom?).
+
+Now using a popular visualization technique called **t-SNE**, which takes a high dimensional matrix, and converts it into a 2 or 3 dimensional representation of the data such that when plotted, similar objects appear nearby each other  and dissimilar objects appear far away from each other.
+
+```{r}
+# load packages
+pacman::p_load(tm, Rtsne, tibble, tidytext, scales)
+
+# create vector of words to keep, before applying tsne (i.e. remove stop words)
+keep_words <- setdiff(colnames(word_vectors), stopwords())
+
+# keep words in vector
+word_vec <- word_vectors[, keep_words]
+
+# prepare data frame to train
+train_df <- data.frame(t(word_vec)) %>%
+  rownames_to_column("word")
+
+# train tsne for visualization
+tsne <- Rtsne(train_df[,-1], dims = 2, perplexity = 50, verbose=TRUE, max_iter = 500)
+
+# create plot
+colors = rainbow(length(unique(train_df$word)))
+names(colors) = unique(train_df$word)
+
+plot_df <- data.frame(tsne$Y) %>%
+  mutate(
+    word = train_df$word,
+    col = colors[train_df$word]
+  ) %>%
+  left_join(vocab, by = c("word" = "term")) %>%
+  filter(doc_count >= 20)
+
+p <- ggplot(plot_df, aes(X1, X2)) +
+  geom_text(aes(X1, X2, label = word, color = col), size = 3) +
+  xlab("") + ylab("") +
+  theme(legend.position = "none") 
+p
+```
+
+**t-SNE** maps high dimensional data such as word embedding into a lower dimension in such that the distance between two words roughly describe the similarity. Additionally it begins to create naturally forming clusters.
+
+To make this even more interesting, let's overlay sentiment. To estimate sentiment at the word level, we will use the sentence-level sentiment that we calculated before. To calcualte a word-level sentiment, we will simply take all the sentences that contain the word of interest, and take the average of sentiment across all thsoe sentences.
+
+
+```{r}
+# calculate word-level sentiment
+word_sent <- review_df %>%
+  left_join(sent_df, by = "id") %>%
+  select(id, comments, ave_sentiment) %>%
+  unnest_tokens(word, comments) %>%
+  group_by(word) %>%
+  summarise(
+    count = n(),
+    avg_sentiment = mean(ave_sentiment),
+    sum_sentiment = sum(ave_sentiment),
+    sd_sentiment = sd(ave_sentiment)
+  ) %>%
+  # rtemove stop words
+  anti_join(stop_words, by = "word") 
+
+# filter to words that appear at least 5 times
+pd_sent <- plot_df %>%
+  left_join(word_sent, by = "word") %>%
+  drop_na() %>%
+  filter(count >= 5)
+
+# create plot
+p <- ggplot(pd_sent, aes(X1, X2)) +
+  geom_point(aes(X1, X2, size = count, alpha = .1, color = avg_sentiment)) +
+  geom_text(aes(X1, X2, label = word), size = 2) +
+  scale_colour_gradient2(low = muted("red"), mid = "white",
+                         high = muted("blue"), midpoint = 0) +
+  scale_size(range = c(5, 20)) +
+  xlab("") + ylab("") +
+  ggtitle("2-dimensional t-SNE Mapping of Word Vectors") +
+  guides(color = guide_legend(title="Avg. Sentiment"), size = guide_legend(title = "Frequency"), alpha = NULL) +
+  scale_alpha(range = c(1, 1), guide = "none")
+p
+
+```
+
+We have successfully plotted the frequency of word occurrence in the reviews, mapped the contextual word similarities using Word Embeddings, and overlaid the word-level sentiment by color.
+
+
+## Topic Modeling
+
+The last "topic" in this post is **Topic Modeling**. A Topic Model is a language learning model that identifies "topics", in which words sharing similar contextual meanings appear together. It's as if similar words are clustered together, except that a word can appear in multiple topics. Additionally, each document/review can be characterized by a single or multiple topics.
+
+Topics are identified based on the detection of the likelihood of term co-occurrence, determined by a model. One of the most popular Topic Model today is called **Latent Dirchlet Allocation**, and as such, we will be using LDA for this post.
+
+We will be using packages `topicmodels` and `ldatuning` for topic modeling using LDA, with help  from `tm` and `tidytext` for data cleansing. First, we will remove any words that occur in less than 1% of the reviews.
+
+```{r}
+# load packages
+pacman::p_load(tm, topicmodels, tidytext, ldatuning)
+
+# remove words that show up in more than 5% of documents
+frequent_words <- vocab %>%
+  filter(doc_count >= nrow(review_df) * .01) %>%
+  rename(word = term) %>%
+  select(word)
+```
+
+We will then be converting the reviews (or documents) into a Document Term Matrix (DTM). A DTM (or TDM for Term Document Matrix) is a very popular method of storing or structuring text data that allows for easy manipulation to do things such as calculate the TF-IDF (Term Frequency - Inverse Document Frequecy), or in this case, perform a **Latent Dirchlet Allocation** model.
+
+```{r}
+# split into words
+by_review_word <- reviews_all %>%
+  mutate(id = 1:nrow(.)) %>%
+  unnest_tokens(word, comments)
+
+# find document-word counts
+word_counts <- by_review_word %>%
+  anti_join(stop_words, by = "word") %>%
+  count(id, word, sort = TRUE) %>%
+  ungroup()
+
+dtm <- word_counts %>%
+  cast_dtm(id, word, n)
+```
+
+To find the right number of topics, we run Latent Dirchlet Allocation at varying levels of `k` (# of topics), and determine the most appropriate number of topics by looking at several evaluation metrics.
+
+```{r, fig.height = 5}
+# find topics
+result <- FindTopicsNumber(
+  dtm,
+  topics = seq(from = 2, to = 15, by = 1),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 77),
+  mc.cores = 2L,
+  verbose = TRUE
+)
+
+FindTopicsNumber_plot(result)
+```
+
+By inspecting the "maximize" and "minimize" evaluation metrics, `k = 6` topics seem to be an appropriate number.
+
+We will now refit the model using  `k = 6`, and within each topic return the top 20 words based on its `beta` value (which roughly represents how 'informative' the word is to the topic).
+
+```{r}
+# set a seed so that the output of the model is predictable
+my_lda <- topicmodels::LDA(dtm, k = 6, method = "Gibbs")
+
+# transform into tidy data frame
+ap_topics <- tidy(my_lda, matrix = "beta")
+
+# for each topic, obtain the top 20 words by beta
+pd <- ap_topics %>%
+  group_by(topic) %>%
+  top_n(20, beta) %>%  # top words based on informativeness
+  ungroup() %>%
+  arrange(topic, beta) %>%
+  mutate(order = row_number()) 
+
+# plot
+ggplot(pd, aes(order, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  # Add categories to axis
+  scale_x_continuous(
+    breaks = pd$order,
+    labels = pd$term,
+    expand = c(0,0)
+  ) +
+  coord_flip()
+```
+
+Based on the top words that surface, we attempt to create a label for each of the topic.
+
+```{r}
+# label topics
+topics <- tribble(
+  ~topic,  ~desc,
+  1, "Symbrock, Symbiotes",
+  2, "Story,  Comic",
+  3, "Positive Reception",
+  4, "Negative Reception",
+  5, "Venom",
+  6, "Tom Hardy"
+)
+```
+
+And for the final viz, we will overlay the sentiment and the word vectors to create a single cohesive visualization that encapsulates all three Natural Language Processing tasks from this post.
+
+```{r}
+# combine sentiment
+pd_sent_topic <- pd_sent %>%
+  left_join(ap_topics, by = c("word" = "term")) %>%
+  filter(beta > .005) %>%
+  left_join(topics, by = "topic") %>%
+  ungroup()
+
+# create plot
+p <- ggplot() +
+  geom_point(data = pd_sent_topic, aes(X1, X2, size = count, alpha = .01, color = avg_sentiment)) +
+  geom_text(data = pd_sent_topic, aes(X1, X2, label = word), size = 2) +
+  scale_colour_gradient2(low = muted("red"), mid = "white",
+                         high = muted("blue"), midpoint = 0) +
+  scale_size(range = c(5, 20)) +
+  xlab("") + ylab("") +
+  ggtitle("2-dimensional t-SNE Mapping of Word Vectors, by Topic") +
+  guides(color = guide_legend(title="Sentiment"), size = guide_legend(title = "Frequency"), alpha = NULL) +
+  scale_alpha(range = c(1, 1), guide = "none") +
+  facet_wrap(~desc, scales=  "free")
+p
+```
+
+And voila. We have successful created a single visualization that encapsulates the Sentiment (using Lexicon-based Domain-specific Sentiment Analysis), the Semantic Word Similarity (using GloVe Word Embedding), and the Topics (using Topic Modeling with Latent Dirichlet Allocation). I will add one note that, the performance of various Natural Language Processing will improve many folds with more and more text data, so it is recommended that you chase down and work with a large corpora of texts, rather than spend time tweaking the parameters to get them right.
+
+If you found this post informative, please hit **Subscribe** or leave a comment!
