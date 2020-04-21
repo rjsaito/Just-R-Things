@@ -1,13 +1,5 @@
 # 5/15/2017
-# Riki Saito rsaito@mazdausa.com
 # Multi-Armed Bandit Test
-
-
-# Set path
-if(Sys.info()['nodename'] == "DESKTOP-65O36VI") setwd("C:/Users/rjsai/Dropbox/Work/Mazda/projects/") else
-  if(Sys.info()['nodename'] %in% c("UD-VEHICLES-004", "L9-R90N9WD7")) setwd("C:/Users/rsaito/Dropbox/Work/Mazda/projects/") else
-    stop("Specify path for new machine")
-
 
 
 # binomial trial function
