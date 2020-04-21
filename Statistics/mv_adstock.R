@@ -1,4 +1,4 @@
-# Riki Saito rsaito@mazdausa.com
+# Riki Saito
 # Multivariate Adstock Model
 
 
