@@ -1,7 +1,7 @@
 
 <img src="https://github.com/rjsaito/Just-R-Things/blob/master/justrthings_logo.png" width="200" height="175" />
 
-https://justrthings.com/
+[https://justrthings.com/](https://justrthings.wordpress.com/)
 
 ## Synopsis
 
