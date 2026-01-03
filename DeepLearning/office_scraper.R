@@ -1,4 +1,3 @@
-# Riki Saito rjsaito@gmail.com
 # Scraper for The Office quotes
 
 pacman::p_load(rvest, stringr)
